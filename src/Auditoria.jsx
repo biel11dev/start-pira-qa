@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { FaClipboardList, FaCog, FaChevronDown, FaChevronUp, FaSpinner, FaSearch } from "react-icons/fa";
 import "./Auditoria.css";
 
-const API_URL = "https://api-start-pira.vercel.app";
+const API_URL = "https://api-start-pira-qa.vercel.app";
 
 const Auditoria = () => {
   const [registros, setRegistros] = useState([]);

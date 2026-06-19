@@ -10,6 +10,7 @@ const Register = () => {
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState(""); // Estado para armazenar a confirmação da senha
   const [passwordError, setPasswordError] = useState(""); // Estado para armazenar a mensagem de erro de senha
+  const [isFuncionario, setIsFuncionario] = useState(false);
   const [showMessage, setShowMessage] = useState(false);
   const [message, setMessage] = useState(""); // Estado para armazenar a mensagem
   const [messageType, setMessageType] = useState(""); // Estado para armazenar o tipo de mensagem
@@ -31,7 +32,7 @@ const Register = () => {
 
     console.log("Username:", username, "Password:", password); // Adicione este console.log para verificar os valores
     try {
-      await axios.post("https://api-start-pira-qa.vercel.app/api/register", { username, password });
+      await axios.post("https://api-start-pira-qa.vercel.app/api/register", { username, password, funcionario: isFuncionario });
       setMessage("Usuário registrado com sucesso!");
       setMessageType("success");
       setShowMessage(true);
@@ -68,6 +69,16 @@ const Register = () => {
           <input type="password" className="form-control" placeholder="Confirme a senha" required onChange={(e) => setPasswordConfirm(e.target.value)} onBlur={validatePasswords} />
           <FaLock className="iconn" />
           {passwordError && <span className="error-message">{passwordError}</span>}
+        </div>
+        <div className="input-field" style={{ flexDirection: 'row', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+          <input
+            type="checkbox"
+            id="funcionario"
+            checked={isFuncionario}
+            onChange={(e) => setIsFuncionario(e.target.checked)}
+            style={{ width: 'auto', cursor: 'pointer' }}
+          />
+          <label htmlFor="funcionario" style={{ cursor: 'pointer', marginBottom: 0 }}>É funcionário</label>
         </div>
         <button type="submit" className="btn-primary-btn-block" disabled={passwordError}>
           Registrar

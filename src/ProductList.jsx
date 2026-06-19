@@ -1,6 +1,6 @@
 import axios from "axios";
 import React, { useEffect, useState } from "react";
-import { FaSpinner } from "react-icons/fa";
+import { FaSpinner, FaShoppingCart, FaBell, FaRedo, FaCheck } from "react-icons/fa";
 import * as XLSX from "xlsx";
 import Message from "./Message";
 import "./ProductList.css";
@@ -36,9 +36,20 @@ const ProductList = () => {
   
   // Estados para equivalência de unidades
   const [isUnitEquivalenceModalOpen, setIsUnitEquivalenceModalOpen] = useState(false);
+  const [unitType, setUnitType] = useState("empacotada"); // "empacotada" | "porcao"
   const [selectedUnitForEquivalence, setSelectedUnitForEquivalence] = useState("");
   const [unitEquivalence, setUnitEquivalence] = useState("");
+  const [fractionalValue, setFractionalValue] = useState(""); // quantas porções saem de 1 unidade-pai
   const [unitEquivalences, setUnitEquivalences] = useState({});
+
+  // Estado de abas
+  const [activeTab, setActiveTab] = useState("base"); // "base" | "compras"
+
+  // ============ LISTA DE COMPRAS ============
+  const [listaCompras, setListaCompras] = useState([]);
+  const [listaFiltro, setListaFiltro] = useState("PENDENTE");
+  const [isLoadingLista, setIsLoadingLista] = useState(false);
+  const [expandedListaGroups, setExpandedListaGroups] = useState({});
 
   useEffect(() => {
     axios
@@ -46,12 +57,35 @@ const ProductList = () => {
       .then((response) => {
         setProducts(response.data);
         setFilteredProducts(response.data);
-        console.log("Produtos carregados:", response.data);
       })
       .catch((error) => {
         console.error("Erro ao buscar produtos:", error);
       });
   }, []);
+
+  useEffect(() => {
+    fetchListaCompras();
+  }, []);
+
+  const fetchListaCompras = () => {
+    setIsLoadingLista(true);
+    axios.get("https://api-start-pira-qa.vercel.app/api/lista-compras")
+      .then(res => setListaCompras(res.data))
+      .catch(err => console.error("Erro ao buscar lista de compras:", err))
+      .finally(() => setIsLoadingLista(false));
+  };
+
+  const handleConcluirListaItem = (id) => {
+    axios.put(`https://api-start-pira-qa.vercel.app/api/lista-compras/${id}/concluir`)
+      .then(() => fetchListaCompras())
+      .catch(() => setMessage({ show: true, text: "Erro ao concluir item!", type: "error" }));
+  };
+
+  const handleReabrirListaItem = (id) => {
+    axios.put(`https://api-start-pira-qa.vercel.app/api/lista-compras/${id}/reabrir`)
+      .then(() => fetchListaCompras())
+      .catch(() => setMessage({ show: true, text: "Erro ao reabrir item!", type: "error" }));
+  };
 
   useEffect(() => {
     axios
@@ -173,53 +207,68 @@ const ProductList = () => {
   };
 
   const handleSaveUnitEquivalence = () => {
-    if (unitEquivalence.trim() !== "" && !isNaN(unitEquivalence) && parseFloat(unitEquivalence) > 0) {
-      const isEditing = unitEquivalences[selectedUnitForEquivalence];
-      const equivalenceValue = parseFloat(unitEquivalence);
-      
-      const apiCall = isEditing 
-        ? axios.put(`https://api-start-pira-qa.vercel.app/api/unit-equivalences/${selectedUnitForEquivalence}`, {
-            value: equivalenceValue
-          })
-        : axios.post("https://api-start-pira-qa.vercel.app/api/unit-equivalences", {
-            unitName: selectedUnitForEquivalence,
-            value: equivalenceValue
-          });
+    const isPorcao = unitType === "porcao";
+    const equivalenceValue = isPorcao ? 1 : parseFloat(unitEquivalence);
+    const fractionalVal = parseFloat(fractionalValue);
 
-      apiCall
-        .then(() => {
-          setUnitEquivalences({
-            ...unitEquivalences,
-            [selectedUnitForEquivalence]: equivalenceValue
-          });
-          
-          if (!isEditing) {
-            setUnit(selectedUnitForEquivalence);
-          }
-          
-          setIsUnitEquivalenceModalOpen(false);
-          setSelectedUnitForEquivalence("");
-          setUnitEquivalence("");
-          setMessage({ 
-            show: true, 
-            text: `Equivalência ${isEditing ? 'atualizada' : 'definida'}: 1 ${selectedUnitForEquivalence} = ${equivalenceValue} Unidades`, 
-            type: "success" 
-          });
-          setTimeout(() => setMessage(null), 3000);
-        })
-        .catch((error) => {
-          console.error("Erro ao salvar equivalência:", error);
-          if (error.response?.status === 409) {
-            setMessage({ show: true, text: "Esta unidade já possui equivalência definida!", type: "error" });
-          } else {
-            setMessage({ show: true, text: "Erro ao salvar equivalência!", type: "error" });
-          }
-          setTimeout(() => setMessage(null), 3000);
-        });
-    } else {
+    if (!isPorcao && (unitEquivalence.trim() === "" || isNaN(equivalenceValue) || equivalenceValue <= 0)) {
       setMessage({ show: true, text: "Digite um número válido maior que zero!", type: "error" });
       setTimeout(() => setMessage(null), 3000);
+      return;
     }
+    if (isPorcao && (fractionalValue.trim() === "" || isNaN(fractionalVal) || fractionalVal <= 1)) {
+      setMessage({ show: true, text: "Informe quantas porções saem de 1 unidade-pai (ex: 9 para 1 Garrafa → 9 Doses)!", type: "error" });
+      setTimeout(() => setMessage(null), 3000);
+      return;
+    }
+
+    const isEditing = unitEquivalences[selectedUnitForEquivalence] !== undefined;
+
+    const payload = isPorcao
+      ? { isFractional: true, fractionalValue: fractionalVal }
+      : { value: equivalenceValue, isFractional: false };
+      
+    const apiCall = isEditing 
+      ? axios.put(`https://api-start-pira-qa.vercel.app/api/unit-equivalences/${selectedUnitForEquivalence}`, payload)
+      : axios.post("https://api-start-pira-qa.vercel.app/api/unit-equivalences", {
+          unitName: selectedUnitForEquivalence,
+          ...payload
+        });
+
+    apiCall
+      .then(() => {
+        setUnitEquivalences({
+          ...unitEquivalences,
+          [selectedUnitForEquivalence]: equivalenceValue
+        });
+        
+        if (!isEditing) {
+          setUnit(selectedUnitForEquivalence);
+        }
+        
+        setIsUnitEquivalenceModalOpen(false);
+        setSelectedUnitForEquivalence("");
+        setUnitEquivalence("");
+        setFractionalValue("");
+        setUnitType("empacotada");
+        setMessage({ 
+          show: true, 
+          text: isPorcao
+            ? `Unidade "${selectedUnitForEquivalence}" adicionada: 1 unidade-pai → ${fractionalVal} ${selectedUnitForEquivalence}(s)`
+            : `Equivalência ${isEditing ? 'atualizada' : 'definida'}: 1 ${selectedUnitForEquivalence} = ${equivalenceValue} Unidades`, 
+          type: "success" 
+        });
+        setTimeout(() => setMessage(null), 3000);
+      })
+      .catch((error) => {
+        console.error("Erro ao salvar equivalência:", error);
+        if (error.response?.status === 409) {
+          setMessage({ show: true, text: "Esta unidade já possui equivalência definida!", type: "error" });
+        } else {
+          setMessage({ show: true, text: "Erro ao salvar equivalência!", type: "error" });
+        }
+        setTimeout(() => setMessage(null), 3000);
+      });
   };
 
   const handleDeleteUnit = (unitToDelete) => {
@@ -440,8 +489,30 @@ const ProductList = () => {
 
   return (
     <div className="product-list-container">
-      <h2 className="fixed-title">Lista de Compras</h2>
+      <h2 className="fixed-title">Base de Cadastro</h2>
 
+      {/* Abas */}
+      <div className="pl-tabs">
+        <button
+          className={`pl-tab ${activeTab === "base" ? "pl-tab--active" : ""}`}
+          onClick={() => setActiveTab("base")}
+        >
+          Base de Cadastro
+        </button>
+        <button
+          className={`pl-tab ${activeTab === "compras" ? "pl-tab--active" : ""}`}
+          onClick={() => { setActiveTab("compras"); fetchListaCompras(); }}
+        >
+          <FaShoppingCart style={{ marginRight: 5 }} />
+          Lista de Compras
+          {listaCompras.filter(i => i.status === "PENDENTE").length > 0 && (
+            <span className="pl-tab-badge">{listaCompras.filter(i => i.status === "PENDENTE").length}</span>
+          )}
+        </button>
+      </div>
+
+      {/* ===== ABA BASE DE CADASTRO ===== */}
+      {activeTab === "base" && (<>
       <div className="search-bar">
         <input
           type="text"
@@ -512,31 +583,86 @@ const ProductList = () => {
         <div className="modal">
           <div className="modal-content">
             <h3 className="texto-add-unidade">
-              {unitEquivalences[selectedUnitForEquivalence] ? 'Editar Equivalência' : 'Definir Equivalência'}
+              {unitEquivalences[selectedUnitForEquivalence] !== undefined ? 'Editar Unidade' : 'Nova Unidade'}: {selectedUnitForEquivalence}
             </h3>
-            <p style={{ color: '#333', fontSize: '14px', marginBottom: '15px', textShadow: 'none' }}>
-              Quantas unidades representa 1 {selectedUnitForEquivalence}?
+
+            <p style={{ color: '#333', fontSize: '13px', marginBottom: '10px', textShadow: 'none', fontWeight: 600 }}>
+              Tipo de unidade:
             </p>
-            <input 
-              className="texto-unidade" 
-              type="number" 
-              value={unitEquivalence} 
-              onChange={(e) => setUnitEquivalence(e.target.value)} 
-              placeholder="Ex: 12" 
-              min="1"
-              step="0.1"
-            />
-            <p style={{ color: '#666', fontSize: '12px', marginTop: '10px', textShadow: 'none' }}>
-              Exemplo: 1 {selectedUnitForEquivalence} = {unitEquivalence || '?'} Unidades
-            </p>
-            <div className="modal-buttons">
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px', color: '#333', textShadow: 'none' }}>
+                <input
+                  type="radio"
+                  name="unitType"
+                  value="empacotada"
+                  checked={unitType === "empacotada"}
+                  onChange={() => setUnitType("empacotada")}
+                />
+                📦 Empacotada (Fardo, Caixa…)
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px', color: '#333', textShadow: 'none' }}>
+                <input
+                  type="radio"
+                  name="unitType"
+                  value="porcao"
+                  checked={unitType === "porcao"}
+                  onChange={() => setUnitType("porcao")}
+                />
+                🥃 Porção / Dose (Dose, Taça, Copo…)
+              </label>
+            </div>
+
+            {unitType === "empacotada" ? (
+              <>
+                <p style={{ color: '#333', fontSize: '14px', marginBottom: '8px', textShadow: 'none' }}>
+                  Quantas <strong>Unidades</strong> representa 1 {selectedUnitForEquivalence}?
+                </p>
+                <input
+                  className="texto-unidade"
+                  type="number"
+                  value={unitEquivalence}
+                  onChange={(e) => setUnitEquivalence(e.target.value)}
+                  placeholder="Ex: 12"
+                  min="1"
+                  step="0.1"
+                />
+                <p style={{ color: '#666', fontSize: '12px', marginTop: '8px', textShadow: 'none' }}>
+                  Exemplo: 1 {selectedUnitForEquivalence} = {unitEquivalence || '?'} Unidades
+                </p>
+              </>
+            ) : (
+              <>
+                <div style={{ background: '#f0f7ff', border: '1px solid #b3d1f7', borderRadius: '8px', padding: '12px', fontSize: '13px', color: '#1a4d8a', textShadow: 'none', marginBottom: '12px' }}>
+                  <strong>Unidade fracional</strong> — representa uma porção gerada a partir de uma unidade-pai (ex: 1 Garrafa → 9 Doses).<br /><br />
+                  Informe abaixo <strong>quantas {selectedUnitForEquivalence || 'porções'}</strong> saem de <strong>1 unidade-pai</strong>:
+                </div>
+                <input
+                  className="texto-unidade"
+                  type="number"
+                  value={fractionalValue}
+                  onChange={(e) => setFractionalValue(e.target.value)}
+                  placeholder="Ex: 9 (1 Garrafa → 9 Doses)"
+                  min="2"
+                  step="1"
+                />
+                {fractionalValue && parseFloat(fractionalValue) > 1 && (
+                  <p style={{ color: '#1a4d8a', fontSize: '12px', marginTop: '8px', textShadow: 'none' }}>
+                    1 unidade-pai → <strong>{fractionalValue} {selectedUnitForEquivalence}(s)</strong>
+                  </p>
+                )}
+              </>
+            )}
+
+            <div className="modal-buttons" style={{ marginTop: '16px' }}>
               <button onClick={handleSaveUnitEquivalence}>
-                {unitEquivalences[selectedUnitForEquivalence] ? 'Atualizar' : 'Confirmar'}
+                {unitEquivalences[selectedUnitForEquivalence] !== undefined ? 'Atualizar' : 'Confirmar'}
               </button>
               <button onClick={() => {
                 setIsUnitEquivalenceModalOpen(false);
                 setSelectedUnitForEquivalence("");
                 setUnitEquivalence("");
+                setFractionalValue("");
+                setUnitType("empacotada");
               }}>Cancelar</button>
             </div>
           </div>
@@ -578,7 +704,7 @@ const ProductList = () => {
         <div className="custom-select">
           <div className="selected-unit">
             {unit || "Selecione uma unidade"}
-            {unit && unit !== "Unidade" && unitEquivalences[unit] && (
+            {unit && unit !== "Unidade" && unitEquivalences[unit] > 1 && (
               <span style={{ fontSize: '11px', color: '#666', marginLeft: '5px', textShadow: 'none' }}>
                 (1 = {unitEquivalences[unit]} un.)
               </span>
@@ -738,7 +864,6 @@ const ProductList = () => {
         {/* Cabeçalho da lista */}
         <div className="product-list-header">
           <span className="header-name">Nome do Produto</span>
-          <span className="header-quantity">Qtd</span>
           <span className="header-unit">Unidade</span>
           <span className="header-category">Categoria</span>
           <span className="header-value">Valor</span>
@@ -862,7 +987,6 @@ const ProductList = () => {
                         // Exibição normal do produto
                         <div className="product-info-display">
                           <span className="product-name">{product.name}</span>
-                          <span className="product-quantity">{product.quantity}</span>
                           <span className="product-unit">{product.unit}</span>
                           <span className="product-category">
                             {product.category?.parent 
@@ -914,11 +1038,96 @@ const ProductList = () => {
         />
       )}
 
+      </>)}
+
+      {/* ===== ABA LISTA DE COMPRAS ===== */}
+      {activeTab === "compras" && (
+        <div className="pl-lista-section">
+          <div className="pl-lista-header">
+            <div className="pl-lista-filtros">
+              {["PENDENTE", "CONCLUIDO", "TODOS"].map(f => (
+                <button
+                  key={f}
+                  className={`pl-lista-filtro-btn ${listaFiltro === f ? "pl-lista-filtro-btn--active" : ""}`}
+                  onClick={() => setListaFiltro(f)}
+                >
+                  {f === "PENDENTE" ? "Pendentes" : f === "CONCLUIDO" ? "Concluídos" : "Todos"}
+                </button>
+              ))}
+              <button className="pl-lista-refresh-btn" onClick={fetchListaCompras} title="Atualizar">
+                <FaRedo size={12} />
+              </button>
+            </div>
+          </div>
+
+          {isLoadingLista ? (
+            <div className="pl-lista-loading"><FaSpinner className="loading-iconn" /> Carregando...</div>
+          ) : (() => {
+            const filtrados = listaCompras.filter(i =>
+              listaFiltro === "TODOS" ? true : i.status === listaFiltro
+            );
+            if (filtrados.length === 0) return (
+              <div className="pl-lista-empty">
+                {listaFiltro === "PENDENTE" ? "✅ Nenhum produto abaixo do estoque mínimo!" : "Nenhum item encontrado."}
+              </div>
+            );
+            const grouped = {};
+            filtrados.forEach(item => {
+              const cat = item.estoque?.category?.parent
+                ? `${item.estoque.category.parent.name} › ${item.estoque.category.name}`
+                : item.estoque?.category?.name || "Sem Categoria";
+              if (!grouped[cat]) grouped[cat] = [];
+              grouped[cat].push(item);
+            });
+            return Object.entries(grouped).map(([cat, items]) => (
+              <div key={cat} className="pl-lista-group">
+                <div className="pl-lista-group-header" onClick={() => setExpandedListaGroups(prev => ({ ...prev, [cat]: !prev[cat] }))}>
+                  <span>📁 {cat} <small>({items.length})</small></span>
+                  <button className="pl-lista-expand-btn">{expandedListaGroups[cat] === false ? "Expandir" : "Ocultar"}</button>
+                </div>
+                {expandedListaGroups[cat] !== false && (
+                  <div className="pl-lista-items">
+                    {items.map(item => (
+                      <div key={item.id} className={`pl-lista-item ${item.status === "CONCLUIDO" ? "pl-lista-item--done" : ""}`}>
+                        <div className="pl-lista-item-left">
+                          {item.status === "CONCLUIDO"
+                            ? <FaCheck className="pl-lista-item-icon pl-lista-item-icon--done" />
+                            : <FaBell className="pl-lista-item-icon pl-lista-item-icon--pending" />
+                          }
+                          <div className="pl-lista-item-info">
+                            <span className="pl-lista-item-nome">{item.nomeProduto}</span>
+                            <span className="pl-lista-item-qtd">
+                              Atual: <strong>{item.quantidadeAtual} {item.estoque?.unit || ""}</strong>
+                              &nbsp;/&nbsp;Mínimo: <strong>{item.quantidadeMinima} {item.estoque?.unit || ""}</strong>
+                            </span>
+                            {item.status === "CONCLUIDO" && item.concluidoEm && (
+                              <span className="pl-lista-item-data">Conclufdo em {new Date(item.concluidoEm).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+                            )}
+                            {item.status === "PENDENTE" && (
+                              <span className="pl-lista-item-data">Registrado em {new Date(item.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="pl-lista-item-actions">
+                          {item.status === "PENDENTE"
+                            ? <button className="pl-lista-btn-concluir" onClick={() => handleConcluirListaItem(item.id)} title="Marcar como conclufdo"><FaCheck /></button>
+                            : <button className="pl-lista-btn-reabrir" onClick={() => handleReabrirListaItem(item.id)} title="Reabrir"><FaRedo /></button>
+                          }
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ));
+          })()}
+        </div>
+      )}
       {message && (
-        <Message 
-          message={message.text} 
-          type={message.type} 
-          onClose={() => setMessage(null)} 
+        <Message
+          message={message.text}
+          type={message.type}
+          onClose={() => setMessage(null)}
         />
       )}
     </div>

@@ -12,7 +12,7 @@ const Acessos = () => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const response = await axios.get("https://api-start-pira.vercel.app/api/users");
+        const response = await axios.get("https://api-start-pira-qa.vercel.app/api/users");
         setUsers(response.data);
       } catch (error) {
         console.error("Erro ao buscar usuários:", error);
@@ -25,7 +25,7 @@ const Acessos = () => {
   // Atualiza as permissões de um usuário
   const handlePermissionChange = async (userId, field, value) => {
     try {
-      await axios.put(`https://api-start-pira.vercel.app/api/users/${userId}`, {
+      await axios.put(`https://api-start-pira-qa.vercel.app/api/users/${userId}`, {
         [field]: value,
       });
 
@@ -47,7 +47,7 @@ const Acessos = () => {
   // Atualiza o nome do usuário
   const handleNameChange = async (userId, newName) => {
     try {
-      await axios.put(`https://api-start-pira.vercel.app/api/users/${userId}`, {
+      await axios.put(`https://api-start-pira-qa.vercel.app/api/users/${userId}`, {
         name: newName,
       });
 
