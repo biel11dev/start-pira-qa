@@ -216,8 +216,8 @@ const ProductList = () => {
       setTimeout(() => setMessage(null), 3000);
       return;
     }
-    if (isPorcao && (fractionalValue.trim() === "" || isNaN(fractionalVal) || fractionalVal <= 1)) {
-      setMessage({ show: true, text: "Informe quantas porções saem de 1 unidade-pai (ex: 9 para 1 Garrafa → 9 Doses)!", type: "error" });
+    if (isPorcao && (fractionalValue.trim() === "" || isNaN(fractionalVal) || fractionalVal <= 0)) {
+      setMessage({ show: true, text: "Informe um valor maior que zero para a equivalência (ex: 0,5 para meia unidade ou 9 para 1 Garrafa → 9 Doses)!", type: "error" });
       setTimeout(() => setMessage(null), 3000);
       return;
     }
@@ -641,11 +641,11 @@ const ProductList = () => {
                   type="number"
                   value={fractionalValue}
                   onChange={(e) => setFractionalValue(e.target.value)}
-                  placeholder="Ex: 9 (1 Garrafa → 9 Doses)"
-                  min="2"
-                  step="1"
+                  placeholder="Ex: 9 (1 Garrafa → 9 Doses) ou 0,5 (metade)"
+                  min="0.01"
+                  step="any"
                 />
-                {fractionalValue && parseFloat(fractionalValue) > 1 && (
+                {fractionalValue && parseFloat(fractionalValue) > 0 && (
                   <p style={{ color: '#1a4d8a', fontSize: '12px', marginTop: '8px', textShadow: 'none' }}>
                     1 unidade-pai → <strong>{fractionalValue} {selectedUnitForEquivalence}(s)</strong>
                   </p>

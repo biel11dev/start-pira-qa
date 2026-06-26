@@ -373,6 +373,36 @@
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
 }
 
+/* Tab switcher Carrinho / Saque */
+.pdv-venda-right-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 14px;
+  border-bottom: 2px solid rgba(255,255,255,0.15);
+  padding-bottom: 4px;
+}
+.pdv-venda-right-tabs button {
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.55);
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 8px 8px 0 0;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+.pdv-venda-right-tabs button:hover:not(.active) {
+  color: rgba(255,255,255,0.85);
+  background: rgba(255,255,255,0.08);
+}
+.pdv-venda-right-tabs button.active {
+  color: #fff;
+  background: rgba(255,255,255,0.15);
+  border-bottom: 2px solid #fff;
+  margin-bottom: -6px;
+}
+
 .customer-input {
   margin-bottom: 15px;
 }
@@ -5163,4 +5193,193 @@ text-shadow: none;
   .pdv-pedido-card-header { flex-direction: column; align-items: flex-start; }
   .pdv-pedidos-search input { width: 130px; }
 }
+
+/* ===== SUB-ABAS DE PEDIDOS (Histórico x Online) ===== */
+.pdv-pedidos-subtabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.15);
+  padding-bottom: 4px;
+}
+
+.pdv-pedidos-subtab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.65);
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 8px 8px 0 0;
+  cursor: pointer;
+  transition: background .2s, color .2s;
+}
+.pdv-pedidos-subtab:hover { color: #fff; background: rgba(255,255,255,0.08); }
+.pdv-pedidos-subtab.active {
+  color: #fff;
+  background: rgba(255,255,255,0.15);
+  box-shadow: inset 0 -3px 0 #6366f1;
+}
+
+/* ===== PEDIDOS ONLINE ===== */
+.pdv-online-status-filtros {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.pdv-online-filtro-btn {
+  background: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.8);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .2s, color .2s;
+}
+.pdv-online-filtro-btn:hover { background: rgba(255,255,255,0.18); }
+.pdv-online-filtro-btn.active {
+  background: #fff;
+  color: #5a3e9b;
+  font-weight: 700;
+}
+
+.pdv-online-card {
+  background: rgba(255,255,255,0.95);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+  border-left: 5px solid #9ca3af;
+  transition: box-shadow 0.15s;
+}
+.pdv-online-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+.pdv-online-card--pending { border-left-color: #f59e0b; }
+.pdv-online-card--preparing { border-left-color: #3b82f6; }
+.pdv-online-card--ready { border-left-color: #10b981; }
+.pdv-online-card--delivered { border-left-color: #6b7280; }
+.pdv-online-card--cancelled { border-left-color: #ef4444; opacity: 0.75; }
+
+.pdv-online-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  cursor: pointer;
+  color: #1f2937;
+}
+
+.pdv-online-card-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pdv-online-card-left .pdv-pedido-id { font-weight: 700; color: #5a3e9b; }
+.pdv-online-card-left .pdv-pedido-cliente { font-weight: 600; }
+
+.pdv-online-card-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+.pdv-online-card-right .pdv-pedido-total { font-weight: 700; color: #059669; }
+.pdv-online-card-right .pdv-pedido-data {
+  font-size: 0.78rem;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pdv-online-status-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.pdv-online-status-badge--pending { background: #f59e0b; }
+.pdv-online-status-badge--preparing { background: #3b82f6; }
+.pdv-online-status-badge--ready { background: #10b981; }
+.pdv-online-status-badge--delivered { background: #6b7280; }
+.pdv-online-status-badge--cancelled { background: #ef4444; }
+
+.pdv-online-card-contato {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 0 16px 12px;
+  font-size: 0.82rem;
+  color: #4b5563;
+}
+.pdv-online-card-contato span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.pdv-online-pagamento {
+  margin-left: auto;
+  font-weight: 600;
+  color: #5a3e9b;
+}
+
+.pdv-online-obs {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: #4b5563;
+  background: #f3f4f6;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.pdv-online-acoes {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-top: 1px solid #e5e7eb;
+  background: #fafafa;
+}
+
+.pdv-online-avancar-btn,
+.pdv-online-wpp-btn,
+.pdv-online-cancelar-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .2s, background .2s;
+}
+.pdv-online-avancar-btn { background: #6366f1; color: #fff; }
+.pdv-online-avancar-btn--preparing { background: #3b82f6; }
+.pdv-online-avancar-btn--ready { background: #10b981; }
+.pdv-online-avancar-btn--delivered { background: #6b7280; }
+.pdv-online-avancar-btn:hover:not(:disabled) { opacity: 0.88; }
+.pdv-online-avancar-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.pdv-online-wpp-btn { background: #25d366; color: #fff; }
+.pdv-online-wpp-btn:hover { opacity: 0.88; }
+
+.pdv-online-cancelar-btn {
+  background: transparent;
+  color: #ef4444;
+  border: 1px solid #ef4444;
+}
+.pdv-online-cancelar-btn:hover:not(:disabled) { background: #ef4444; color: #fff; }
+.pdv-online-cancelar-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 

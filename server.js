@@ -2585,7 +2585,7 @@ app.post('/api/sales', async (req, res) => {
         const currentEqCheck = eqMapCheck[estoqueItem.unit];
         for (const sib of siblings) {  
           let ratio = null;
-          if (currentEqCheck?.isFractional && currentEqCheck?.fractionalValue > 1) {
+          if (currentEqCheck?.isFractional && currentEqCheck?.fractionalValue > 0) {
             // Unidade fracional (Dose): 1 irmão-pai → fractionalValue doses
             ratio = currentEqCheck.fractionalValue;
           } else {
@@ -2595,7 +2595,7 @@ app.post('/api/sales', async (req, res) => {
             const sibVal = sibEq?.value || 1;
             if (sibVal > currentVal) ratio = sibVal / currentVal;
           }
-          if (!ratio || ratio <= 1) continue;
+          if (!ratio || ratio <= 0) continue;
           const neededSiblings = Math.ceil(deficit / ratio);
           if (sib.quantity >= neededSiblings) { canConvert = true; break; }
         }
@@ -2702,7 +2702,7 @@ app.post('/api/sales', async (req, res) => {
           let conversionDone = false;
           for (const sibling of siblings) {
             let ratio = null;
-            if (currentEq?.isFractional && currentEq?.fractionalValue > 1) {
+            if (currentEq?.isFractional && currentEq?.fractionalValue > 0) {
               // Unidade fracional (ex: Dose): 1 irmão-pai → fractionalValue doses
               ratio = currentEq.fractionalValue;
             } else {
@@ -2712,7 +2712,7 @@ app.post('/api/sales', async (req, res) => {
               const sibVal = sibEq?.value || 1;
               if (sibVal > currentVal) ratio = sibVal / currentVal;
             }
-            if (!ratio || ratio <= 1) continue; // sem ratio válido, pular irmão
+            if (!ratio || ratio <= 0) continue; // sem ratio válido, pular irmão
             const neededSiblings = Math.ceil(deficit / ratio);
 
             if (sibling.quantity < neededSiblings) continue; // irmã também sem estoque suficiente
@@ -3104,8 +3104,8 @@ app.post('/api/unit-equivalences', async (req, res) => {
     if (!isPorcao && (value === undefined || value === null || parseFloat(value) < 0)) {
       return res.status(400).json({ error: 'Valor é obrigatório para unidades empacotadas' });
     }
-    if (isPorcao && (!fractionalValue || parseFloat(fractionalValue) <= 1)) {
-      return res.status(400).json({ error: 'Informe quantas porções saem de 1 unidade-pai (deve ser > 1)' });
+    if (isPorcao && (!fractionalValue || parseFloat(fractionalValue) <= 0)) {
+      return res.status(400).json({ error: 'Informe um valor maior que zero para a equivalência (ex: 0.5 para meia unidade ou 9 para 1 Garrafa → 9 Doses)' });
     }
 
     // Verificar se já existe equivalência para esta unidade
@@ -3143,8 +3143,8 @@ app.put('/api/unit-equivalences/:unitName', async (req, res) => {
     if (!isPorcao && (value === undefined || value === null || parseFloat(value) < 0)) {
       return res.status(400).json({ error: 'Valor é obrigatório para unidades empacotadas' });
     }
-    if (isPorcao && (!fractionalValue || parseFloat(fractionalValue) <= 1)) {
-      return res.status(400).json({ error: 'Informe quantas porções saem de 1 unidade-pai (deve ser > 1)' });
+    if (isPorcao && (!fractionalValue || parseFloat(fractionalValue) <= 0)) {
+      return res.status(400).json({ error: 'Informe um valor maior que zero para a equivalência (ex: 0.5 para meia unidade ou 9 para 1 Garrafa → 9 Doses)' });
     }
 
     const equivalence = await prisma.unitEquivalence.update({

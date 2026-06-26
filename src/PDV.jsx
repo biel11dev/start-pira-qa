@@ -1,6 +1,6 @@
 import axios from "axios";
 import React, { useContext, useEffect, useState } from "react";
-import { FaSpinner, FaPlus, FaCashRegister, FaCog, FaTrash, FaHandHoldingUsd, FaTrophy, FaSlidersH, FaCamera, FaCheck, FaArrowRight, FaArrowLeft, FaImage, FaTag, FaLock, FaUserPlus, FaSearch, FaEye, FaTimes, FaMoneyBillWave, FaExclamationTriangle, FaHistory, FaDoorOpen, FaDoorClosed, FaArrowDown, FaArrowUp, FaGlassWhiskey, FaPercent, FaUserTie, FaBoxOpen, FaLayerGroup } from "react-icons/fa";
+import { FaSpinner, FaPlus, FaCashRegister, FaCog, FaTrash, FaHandHoldingUsd, FaTrophy, FaSlidersH, FaCamera, FaCheck, FaArrowRight, FaArrowLeft, FaImage, FaTag, FaLock, FaUserPlus, FaSearch, FaEye, FaTimes, FaMoneyBillWave, FaExclamationTriangle, FaHistory, FaDoorOpen, FaDoorClosed, FaArrowDown, FaArrowUp, FaGlassWhiskey, FaPercent, FaUserTie, FaBoxOpen, FaLayerGroup, FaWhatsapp, FaShoppingBag, FaMapMarkerAlt, FaPhone, FaClock } from "react-icons/fa";
 import "./PDV.css";
 import Message from "./Message";
 import { AuthContext } from "./AuthContext";
@@ -51,7 +51,8 @@ const PDV = () => {
   const [showPremioOrigensConfig, setShowPremioOrigensConfig] = useState(false);
 
   // CONFIG VENDA
-  const [configSubTab, setConfigSubTab] = useState("cupons"); // cupons, comandas, taxas, limites, pagamentos, saque, origens
+  const [configSubTab, setConfigSubTab] = useState("cupons"); // cupons, comandas, taxas, limites, pagamentos, origens
+  const [vendaRightTab, setVendaRightTab] = useState("carrinho"); // carrinho | saque
 
   // SAQUE (troco via máquina)
   const [saqueValor, setSaqueValor] = useState("");
@@ -178,6 +179,14 @@ const PDV = () => {
     return hoje.toISOString().split("T")[0];
   });
 
+  // ===== PEDIDOS ONLINE (sub-aba de gerenciamento) =====
+  const [pedidosSubTab, setPedidosSubTab] = useState("historico"); // "historico" | "online"
+  const [pedidosOnline, setPedidosOnline] = useState([]);
+  const [isLoadingOnline, setIsLoadingOnline] = useState(false);
+  const [onlineStatusFiltro, setOnlineStatusFiltro] = useState(""); // "" = todos
+  const [onlineDetalhe, setOnlineDetalhe] = useState(null);
+  const [atualizandoStatusId, setAtualizandoStatusId] = useState(null);
+
   // ===== EQUIVALÊNCIAS DE UNIDADES (para conversão automática) =====
   const [unitEquivalences, setUnitEquivalences] = useState({});
 
@@ -300,11 +309,6 @@ const PDV = () => {
     try {
       const response = await axios.get(`${API_URL}/api/pdv-origens`);
       setOrigensDisponiveis(response.data);
-      if (response.data.length === 0) {
-        await axios.post(`${API_URL}/api/pdv-origens/init`);
-        const updated = await axios.get(`${API_URL}/api/pdv-origens`);
-        setOrigensDisponiveis(updated.data);
-      }
     } catch (error) {
       console.error("Erro ao buscar origens:", error);
     }
@@ -1689,6 +1693,62 @@ const PDV = () => {
       .finally(() => setIsLoadingPedidos(false));
   };
 
+  // Etapas do fluxo de pedido online (ordem) e rótulos
+  const PEDIDO_STATUS = ["pending", "preparing", "ready", "delivered"];
+  const PEDIDO_STATUS_LABELS = {
+    pending: "Pendente",
+    preparing: "Em preparo",
+    ready: "Pronto para retirada",
+    delivered: "Entregue",
+    cancelled: "Cancelado",
+  };
+  // Próximo status no fluxo (null se for final/cancelado)
+  const proximoStatus = (status) => {
+    const idx = PEDIDO_STATUS.indexOf(status);
+    if (idx === -1 || idx >= PEDIDO_STATUS.length - 1) return null;
+    return PEDIDO_STATUS[idx + 1];
+  };
+
+  // Busca os pedidos online (origem ONLINE) com filtro opcional por status
+  const fetchPedidosOnline = () => {
+    setIsLoadingOnline(true);
+    const params = new URLSearchParams();
+    if (onlineStatusFiltro) params.append("status", onlineStatusFiltro);
+    axios
+      .get(`${API_URL}/api/sales/online?${params.toString()}`)
+      .then((res) => {
+        setPedidosOnline(res.data);
+      })
+      .catch(() => {
+        setMessage({ text: "Erro ao carregar pedidos online.", type: "error" });
+      })
+      .finally(() => setIsLoadingOnline(false));
+  };
+
+  // Atualiza o status de um pedido online e abre o WhatsApp do cliente (se houver telefone)
+  const atualizarStatusOnline = (pedidoId, novoStatus) => {
+    setAtualizandoStatusId(pedidoId);
+    axios
+      .put(`${API_URL}/api/sales/${pedidoId}/status`, { status: novoStatus })
+      .then((res) => {
+        setPedidosOnline((prev) => prev.map((p) => (p.id === pedidoId ? { ...p, statusPedido: novoStatus } : p)));
+        const wpp = res.data?.whatsapp;
+        if (wpp?.link) {
+          window.open(wpp.link, "_blank");
+        } else if (wpp && wpp.hasPhone === false) {
+          setMessage({ text: `Status atualizado para "${PEDIDO_STATUS_LABELS[novoStatus]}". Cliente sem telefone para WhatsApp.`, type: "info" });
+        } else {
+          setMessage({ text: `Status atualizado para "${PEDIDO_STATUS_LABELS[novoStatus]}".`, type: "success" });
+        }
+        // Se há filtro ativo que não bate com o novo status, recarrega a lista
+        if (onlineStatusFiltro && onlineStatusFiltro !== novoStatus) fetchPedidosOnline();
+      })
+      .catch((err) => {
+        setMessage({ text: err.response?.data?.error || "Erro ao atualizar status.", type: "error" });
+      })
+      .finally(() => setAtualizandoStatusId(null));
+  };
+
   return (
     <div className="pdv-container">
       <h2 className="pdv-title">PDV - Ponto de Venda</h2>
@@ -1716,7 +1776,7 @@ const PDV = () => {
         <button className={`pdv-tab ${activeTab === "config" ? "active" : ""}`} onClick={() => setActiveTab("config")}>
           <FaSlidersH /> Config. Venda
         </button>
-        <button className={`pdv-tab ${activeTab === "pedidos" ? "active" : ""}`} onClick={() => { setActiveTab("pedidos"); fetchUltimosPedidos(); }}>
+        <button className={`pdv-tab ${activeTab === "pedidos" ? "active" : ""}`} onClick={() => { setActiveTab("pedidos"); if (pedidosSubTab === "online") fetchPedidosOnline(); else fetchUltimosPedidos(); }}>
           <FaHistory /> Pedidos
         </button>
       </div>
@@ -1855,8 +1915,93 @@ const PDV = () => {
 
         {/* Seção do Carrinho */}
         <div className={`cart-section ${comandaEmPagamento ? "pdv-cart-comanda-mode" : ""}`}>
-          <h3>Carrinho</h3>
+          <div className="pdv-venda-right-tabs">
+            <button className={vendaRightTab === "carrinho" ? "active" : ""} onClick={() => setVendaRightTab("carrinho")}>Carrinho</button>
+            <button className={vendaRightTab === "saque" ? "active" : ""} onClick={() => { setVendaRightTab("saque"); fetchTaxaSaque(); }}>Saque</button>
+          </div>
           
+          {vendaRightTab === "saque" && (
+            <div className="pdv-saque-panel" style={{ padding: '12px 0' }}>
+              <div className="pdv-saque-taxa-config">
+                <div className="pdv-saque-taxa-atual">
+                  <span>Taxa atual de saque:</span>
+                  <strong className="pdv-saque-taxa-valor">{taxaSaque}%</strong>
+                  <span className="pdv-saque-taxa-exemplo">
+                    — ex: R$ 40 → cobrar {formatCurrency(40 * (1 + taxaSaque / 100))} na máquina
+                  </span>
+                </div>
+                <div className="pdv-saque-taxa-form">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    placeholder={`Nova taxa (atual: ${taxaSaque}%)`}
+                    value={taxaSaqueInput}
+                    onChange={(e) => setTaxaSaqueInput(e.target.value)}
+                    className="pdv-saque-taxa-input"
+                  />
+                  <button
+                    className="pdv-saque-taxa-btn"
+                    onClick={handleSalvarTaxaSaque}
+                    disabled={isLoadingTaxaSaque || taxaSaqueInput === ""}
+                  >
+                    {isLoadingTaxaSaque ? "Salvando..." : "Salvar Taxa"}
+                  </button>
+                </div>
+              </div>
+              <p className="pdv-config-panel-desc" style={{ marginTop: 16 }}>
+                Cliente quer dinheiro em nota? Passe na máquina e registre a saída do caixa.
+              </p>
+              <div className="pdv-saque-form">
+                <div className="pdv-saque-field">
+                  <label className="sombra-modal">Valor desejado pelo cliente (R$)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="Ex: 40,00"
+                    value={saqueValor}
+                    onChange={(e) => setSaqueValor(e.target.value)}
+                  />
+                </div>
+                {saqueValor && parseFloat(saqueValor) > 0 && (
+                  <div className="pdv-saque-preview">
+                    <div className="pdv-saque-preview-row">
+                      <span>Cliente recebe:</span>
+                      <strong className="pdv-saque-cash">{formatCurrency(parseFloat(saqueValor))}</strong>
+                    </div>
+                    <div className="pdv-saque-preview-row">
+                      <span>Cobrar na máquina:</span>
+                      <strong className="pdv-saque-machine">{formatCurrency(parseFloat(saqueValor) * (1 + taxaSaque / 100))}</strong>
+                    </div>
+                    <div className="pdv-saque-preview-row pdv-saque-fee-row">
+                      <span>Taxa ({taxaSaque}%):</span>
+                      <span className="pdv-saque-fee">{formatCurrency(parseFloat(saqueValor) * (taxaSaque / 100))}</span>
+                    </div>
+                  </div>
+                )}
+                <div className="pdv-saque-field">
+                  <label className="sombra-modal">Observação (opcional)</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: nome do cliente"
+                    value={saqueObservacao}
+                    onChange={(e) => setSaqueObservacao(e.target.value)}
+                  />
+                </div>
+                <button
+                  className="pdv-saque-btn"
+                  onClick={handleConfirmarSaque}
+                  disabled={isLoadingSaque || !saqueValor || parseFloat(saqueValor) <= 0}
+                >
+                  {isLoadingSaque ? "Registrando..." : "Confirmar Saque"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {vendaRightTab === "carrinho" && (<>
           <div className="customer-input">
             <input
               type="text"
@@ -2059,6 +2204,7 @@ const PDV = () => {
               </button>
             </div>
           </div>
+          </>)}
         </div>
       </div>
       )}
@@ -2087,12 +2233,12 @@ const PDV = () => {
             <div className="pdv-add-field">
               <label>
                 Origem(ns)
-                <button className="pdv-origens-config-btn" onClick={() => setShowOrigensConfig(!showOrigensConfig)} title="Gerenciar origens">
+                {/* <button className="pdv-origens-config-btn" onClick={() => setShowOrigensConfig(!showOrigensConfig)} title="Gerenciar origens">
                   <FaCog />
-                </button>
+                </button> */}
               </label>
 
-              {showOrigensConfig && (
+              {/* {showOrigensConfig && (
                 <div className="pdv-origens-config">
                   <div className="pdv-origens-config-header">
                     <input
@@ -2113,7 +2259,7 @@ const PDV = () => {
                     ))}
                   </ul>
                 </div>
-              )}
+              )} */}
 
               {addOrigens.map((origem, index) => (
                 <div key={index} className="pdv-add-origem-row">
@@ -2124,10 +2270,6 @@ const PDV = () => {
                     <option value="">Selecione...</option>
                     {origemSaldos.filter(o => o.nome !== "CAIXA").map(o => (
                       <option key={`tracked-${o.nome}`} value={o.nome}>{o.nome} ({formatCurrency(o.saldo)})</option>
-                    ))}
-                    {origensDisponiveis.length > 0 && <option disabled>────────</option>}
-                    {origensDisponiveis.map((o) => (
-                      <option key={o.id} value={o.nome}>{o.nome}</option>
                     ))}
                   </select>
                   <div className="pdv-add-origem-valor">
@@ -2238,10 +2380,6 @@ const PDV = () => {
                     <option value="">Selecione...</option>
                     {origemSaldos.map(o => (
                       <option key={`tracked-${o.nome}`} value={o.nome}>{o.nome} ({formatCurrency(o.saldo)})</option>
-                    ))}
-                    {origensDisponiveis.length > 0 && <option disabled>────────</option>}
-                    {origensDisponiveis.map((o) => (
-                      <option key={o.id} value={o.nome}>{o.nome}</option>
                     ))}
                   </select>
                   <div className="pdv-vale-origem-valor">
@@ -2421,8 +2559,8 @@ const PDV = () => {
                         onChange={(e) => handleOrigemChangePremio(index, "nome", e.target.value)}
                       >
                         <option value="">Selecione...</option>
-                        {origensDisponiveis.map((o) => (
-                          <option key={o.id} value={o.nome}>{o.nome}</option>
+                        {origemSaldos.filter(o => o.nome !== "CAIXA").map(o => (
+                          <option key={`tracked-${o.nome}`} value={o.nome}>{o.nome} ({formatCurrency(o.saldo)})</option>
                         ))}
                       </select>
                       <div className="pdv-premio-origem-valor">
@@ -3271,7 +3409,6 @@ const PDV = () => {
               <button className={configSubTab === "taxas" ? "active" : ""} onClick={() => setConfigSubTab("taxas")}>Taxas</button>
               <button className={configSubTab === "limites" ? "active" : ""} onClick={() => setConfigSubTab("limites")}>Limites</button>
               <button className={configSubTab === "pagamentos" ? "active" : ""} onClick={() => setConfigSubTab("pagamentos")}>Pagamentos</button>
-              <button className={configSubTab === "saque" ? "active" : ""} onClick={() => { setConfigSubTab("saque"); fetchTaxaSaque(); }}>Saque</button>
               <button className={configSubTab === "origens" ? "active" : ""} onClick={() => { setConfigSubTab("origens"); fetchOrigemSaldos(); }}>Origens</button>
             </div>
 
@@ -3533,93 +3670,6 @@ const PDV = () => {
               </div>
             )}
 
-            {/* ---- SAQUE ---- */}
-            {configSubTab === "saque" && (
-              <div className="pdv-config-panel pdv-saque-panel">
-                {/* Configuração da taxa */}
-                <div className="pdv-saque-taxa-config">
-                  <div className="pdv-saque-taxa-atual">
-                    <span>Taxa atual de saque:</span>
-                    <strong className="pdv-saque-taxa-valor">{taxaSaque}%</strong>
-                    <span className="pdv-saque-taxa-exemplo">
-                      — ex: R$ 40 → cobrar {formatCurrency(40 * (1 + taxaSaque / 100))} na máquina
-                    </span>
-                  </div>
-                  <div className="pdv-saque-taxa-form">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      placeholder={`Nova taxa (atual: ${taxaSaque}%)`}
-                      value={taxaSaqueInput}
-                      onChange={(e) => setTaxaSaqueInput(e.target.value)}
-                      className="pdv-saque-taxa-input"
-                    />
-                    <button
-                      className="pdv-saque-taxa-btn"
-                      onClick={handleSalvarTaxaSaque}
-                      disabled={isLoadingTaxaSaque || taxaSaqueInput === ""}
-                    >
-                      {isLoadingTaxaSaque ? "Salvando..." : "Salvar Taxa"}
-                    </button>
-                  </div>
-                </div>
-
-                <p className="pdv-config-panel-desc" style={{ marginTop: 16 }}>
-                  Cliente quer dinheiro em nota? Passe na máquina e registre a saída do caixa.
-                </p>
-
-                <div className="pdv-saque-form">
-                  <div className="pdv-saque-field">
-                    <label className="sombra-modal">Valor desejado pelo cliente (R$)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="Ex: 40,00"
-                      value={saqueValor}
-                      onChange={(e) => setSaqueValor(e.target.value)}
-                    />
-                  </div>
-
-                  {saqueValor && parseFloat(saqueValor) > 0 && (
-                    <div className="pdv-saque-preview">
-                      <div className="pdv-saque-preview-row">
-                        <span>Cliente recebe:</span>
-                        <strong className="pdv-saque-cash">{formatCurrency(parseFloat(saqueValor))}</strong>
-                      </div>
-                      <div className="pdv-saque-preview-row">
-                        <span>Cobrar na máquina:</span>
-                        <strong className="pdv-saque-machine">{formatCurrency(parseFloat(saqueValor) * (1 + taxaSaque / 100))}</strong>
-                      </div>
-                      <div className="pdv-saque-preview-row pdv-saque-fee-row">
-                        <span>Taxa ({taxaSaque}%):</span>
-                        <span className="pdv-saque-fee">{formatCurrency(parseFloat(saqueValor) * (taxaSaque / 100))}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="pdv-saque-field">
-                    <label className="sombra-modal">Observação (opcional)</label>
-                    <input
-                      type="text"
-                      placeholder="Ex: nome do cliente"
-                      value={saqueObservacao}
-                      onChange={(e) => setSaqueObservacao(e.target.value)}
-                    />
-                  </div>
-
-                  <button
-                    className="pdv-saque-btn"
-                    onClick={handleConfirmarSaque}
-                    disabled={isLoadingSaque || !saqueValor || parseFloat(saqueValor) <= 0}
-                  >
-                    {isLoadingSaque ? "Registrando..." : "Confirmar Saque"}
-                  </button>
-                </div>
-              </div>
-            )}
             {/* ---- ORIGENS DE SALDO ---- */}
             {configSubTab === "origens" && (
               <div className="pdv-config-panel pdv-origens-panel">
@@ -4038,6 +4088,24 @@ const PDV = () => {
       {/* ========== ABA PEDIDOS ========== */}
       {activeTab === "pedidos" && (
         <div className="pdv-pedidos-section">
+          {/* Sub-abas: Histórico x Pedidos Online */}
+          <div className="pdv-pedidos-subtabs">
+            <button
+              className={`pdv-pedidos-subtab ${pedidosSubTab === "historico" ? "active" : ""}`}
+              onClick={() => { setPedidosSubTab("historico"); fetchUltimosPedidos(); }}
+            >
+              <FaHistory /> Histórico
+            </button>
+            <button
+              className={`pdv-pedidos-subtab ${pedidosSubTab === "online" ? "active" : ""}`}
+              onClick={() => { setPedidosSubTab("online"); fetchPedidosOnline(); }}
+            >
+              <FaShoppingBag /> Pedidos Online
+            </button>
+          </div>
+
+          {pedidosSubTab === "historico" && (
+          <>
           <div className="pdv-pedidos-header">
             <h3 className="sombra-modal"><FaHistory style={{ marginRight: 8 }} /> Últimos Pedidos</h3>
             <div className="pdv-pedidos-filtros">
@@ -4151,6 +4219,121 @@ const PDV = () => {
                   </div>
                 ))}
             </div>
+          )}
+          </>
+          )}
+
+          {pedidosSubTab === "online" && (
+          <>
+          <div className="pdv-pedidos-header">
+            <h3 className="sombra-modal"><FaShoppingBag style={{ marginRight: 8 }} /> Pedidos Online</h3>
+            <div className="pdv-pedidos-actions">
+              <div className="pdv-online-status-filtros">
+                <button className={`pdv-online-filtro-btn ${onlineStatusFiltro === "" ? "active" : ""}`} onClick={() => { setOnlineStatusFiltro(""); setTimeout(fetchPedidosOnline, 0); }}>Todos</button>
+                {PEDIDO_STATUS.map((st) => (
+                  <button
+                    key={st}
+                    className={`pdv-online-filtro-btn pdv-online-filtro-btn--${st} ${onlineStatusFiltro === st ? "active" : ""}`}
+                    onClick={() => { setOnlineStatusFiltro(st); setTimeout(fetchPedidosOnline, 0); }}
+                  >
+                    {PEDIDO_STATUS_LABELS[st]}
+                  </button>
+                ))}
+                <button className={`pdv-online-filtro-btn pdv-online-filtro-btn--cancelled ${onlineStatusFiltro === "cancelled" ? "active" : ""}`} onClick={() => { setOnlineStatusFiltro("cancelled"); setTimeout(fetchPedidosOnline, 0); }}>Cancelado</button>
+              </div>
+              <button className="pdv-pedidos-refresh-btn" onClick={fetchPedidosOnline} disabled={isLoadingOnline}>
+                {isLoadingOnline ? <FaSpinner className="spin" /> : <FaHistory className="sombra-modal" size={13} />} Atualizar
+              </button>
+            </div>
+          </div>
+
+          {isLoadingOnline ? (
+            <div className="pdv-pedidos-loading"><FaSpinner className="spin" size={24} /> Carregando pedidos online...</div>
+          ) : pedidosOnline.length === 0 ? (
+            <div className="pdv-pedidos-empty">Nenhum pedido online encontrado.</div>
+          ) : (
+            <div className="pdv-pedidos-list">
+              {pedidosOnline.map((pedido) => {
+                const status = pedido.statusPedido || "pending";
+                const next = proximoStatus(status);
+                return (
+                  <div key={pedido.id} className={`pdv-online-card pdv-online-card--${status}`}>
+                    <div className="pdv-online-card-header" onClick={() => setOnlineDetalhe(onlineDetalhe?.id === pedido.id ? null : pedido)}>
+                      <div className="pdv-online-card-left">
+                        <span className="pdv-pedido-id"># {pedido.id}</span>
+                        <span className="pdv-pedido-cliente">{pedido.customerName || "—"}</span>
+                        <span className={`pdv-online-status-badge pdv-online-status-badge--${status}`}>{PEDIDO_STATUS_LABELS[status] || status}</span>
+                      </div>
+                      <div className="pdv-online-card-right">
+                        <span className="pdv-pedido-total">{formatCurrency(pedido.total)}</span>
+                        <span className="pdv-pedido-data"><FaClock size={11} /> {new Date(pedido.date).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+                      </div>
+                    </div>
+
+                    <div className="pdv-online-card-contato">
+                      {pedido.customerPhone && <span><FaPhone size={11} /> {pedido.customerPhone}</span>}
+                      {pedido.customerAddress && <span><FaMapMarkerAlt size={11} /> {pedido.customerAddress}</span>}
+                      <span className="pdv-online-pagamento">{getFormaNome(pedido.paymentMethod)}</span>
+                    </div>
+
+                    {onlineDetalhe?.id === pedido.id && (
+                      <div className="pdv-pedido-detalhe">
+                        <table className="pdv-pedido-itens-table">
+                          <thead>
+                            <tr><th>Produto</th><th>Qtd</th><th>Unit.</th><th>Total</th></tr>
+                          </thead>
+                          <tbody>
+                            {pedido.items.map((item) => (
+                              <tr key={item.id}>
+                                <td>{item.productName}</td>
+                                <td>{item.quantity}</td>
+                                <td>{formatCurrency(item.unitPrice)}</td>
+                                <td>{formatCurrency(item.total)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {pedido.observacoes && (
+                          <div className="pdv-online-obs"><strong>Obs.:</strong> {pedido.observacoes}</div>
+                        )}
+                      </div>
+                    )}
+
+                    {status !== "delivered" && status !== "cancelled" && (
+                      <div className="pdv-online-acoes">
+                        {next && (
+                          <button
+                            className={`pdv-online-avancar-btn pdv-online-avancar-btn--${next}`}
+                            onClick={() => atualizarStatusOnline(pedido.id, next)}
+                            disabled={atualizandoStatusId === pedido.id}
+                          >
+                            {atualizandoStatusId === pedido.id ? <FaSpinner className="spin" /> : <FaArrowRight />} Avançar para: {PEDIDO_STATUS_LABELS[next]}
+                          </button>
+                        )}
+                        {pedido.customerPhone && (
+                          <button
+                            className="pdv-online-wpp-btn"
+                            onClick={() => atualizarStatusOnline(pedido.id, status)}
+                            title="Reenviar mensagem do status atual no WhatsApp"
+                          >
+                            <FaWhatsapp /> Avisar cliente
+                          </button>
+                        )}
+                        <button
+                          className="pdv-online-cancelar-btn"
+                          onClick={() => { if (window.confirm(`Cancelar o pedido #${pedido.id}?`)) atualizarStatusOnline(pedido.id, "cancelled"); }}
+                          disabled={atualizandoStatusId === pedido.id}
+                        >
+                          <FaTimes /> Cancelar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          </>
           )}
         </div>
       )}

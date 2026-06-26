@@ -446,9 +446,9 @@ const CashRegister = () => {
       <button onClick={() => handleUpdateBalance(entry.id)} className="update-button-cx">
         Atualizar
       </button>
-      <button onClick={() => handleDeleteBalance(entry.id)} className="delete-button-cx">
+      {/* <button onClick={() => handleDeleteBalance(entry.id)} className="delete-button-cx">
         Excluir
-      </button>
+      </button> */}
     </div>
   </li>
 ))}
