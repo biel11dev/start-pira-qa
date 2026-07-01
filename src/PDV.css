@@ -5383,3 +5383,29 @@ text-shadow: none;
 .pdv-online-cancelar-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 
+
+/* ===== Mercado Pago Point (maquininha) ===== */
+.pdv-point-modal { max-width: 420px; }
+.pdv-point-body { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 0; }
+.pdv-point-amount { font-size: 2.2rem; font-weight: 800; color: #10b981; }
+.pdv-point-forma { font-size: 1rem; color: #94a3b8; font-weight: 600; }
+.pdv-point-status { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 12px 16px; border-radius: 10px; font-weight: 600; text-align: center; }
+.pdv-point-status-waiting { background: #12122a; color: #cbd5e1; border: 1px solid #2a2a4a; }
+.pdv-point-status-ok { background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid #10b981; }
+.pdv-point-status-error { background: rgba(239,68,68,0.12); color: #ef4444; border: 1px solid #ef4444; }
+
+/* Config da maquininha */
+.pdv-point-config { margin-top: 22px; padding-top: 18px; border-top: 1px solid #2a2a4a; }
+.pdv-point-config-title { display: flex; align-items: center; gap: 8px; color: #e2e8f0; font-size: 1.05rem; margin-bottom: 12px; }
+.pdv-point-config-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+.pdv-point-config-current { color: #94a3b8; font-size: 0.9rem; }
+.pdv-point-config-options { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; margin-top: 14px; }
+.pdv-point-config-installments { display: flex; align-items: center; gap: 8px; color: #cbd5e1; font-size: 0.9rem; }
+.pdv-point-config-installments input { width: 64px; padding: 6px 8px; border-radius: 6px; border: 1px solid #2a2a4a; background: #12122a; color: #e2e8f0; }
+.pdv-point-terminal-selected td { background: rgba(16,185,129,0.08); }
+
+/* Célula da forma na tabela */
+.pdv-point-forma-cell { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.pdv-point-forma-toggle { display: flex; align-items: center; gap: 6px; color: #cbd5e1; font-size: 0.85rem; cursor: pointer; }
+.pdv-point-forma-toggle input { cursor: pointer; }
+.pdv-point-forma-type { padding: 4px 8px; border-radius: 6px; border: 1px solid #2a2a4a; background: #12122a; color: #e2e8f0; font-size: 0.82rem; }

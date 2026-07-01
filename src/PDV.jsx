@@ -1,5 +1,5 @@
 import axios from "axios";
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import { FaSpinner, FaPlus, FaCashRegister, FaCog, FaTrash, FaHandHoldingUsd, FaTrophy, FaSlidersH, FaCamera, FaCheck, FaArrowRight, FaArrowLeft, FaImage, FaTag, FaLock, FaUserPlus, FaSearch, FaEye, FaTimes, FaMoneyBillWave, FaExclamationTriangle, FaHistory, FaDoorOpen, FaDoorClosed, FaArrowDown, FaArrowUp, FaGlassWhiskey, FaPercent, FaUserTie, FaBoxOpen, FaLayerGroup, FaWhatsapp, FaShoppingBag, FaMapMarkerAlt, FaPhone, FaClock } from "react-icons/fa";
 import "./PDV.css";
 import Message from "./Message";
@@ -91,6 +91,19 @@ const PDV = () => {
   // FORMAS DE PAGAMENTO
   const [formasPagamento, setFormasPagamento] = useState([]);
   const [novaFormaPagamento, setNovaFormaPagamento] = useState("");
+
+  // MERCADO PAGO POINT (pagamento presencial na maquininha)
+  const [pointConfig, setPointConfig] = useState(null); // { configured, terminal_id, print_on_terminal, default_installments }
+  const [pointTerminals, setPointTerminals] = useState([]);
+  const [isLoadingPointTerminals, setIsLoadingPointTerminals] = useState(false);
+  const [isSavingPointConfig, setIsSavingPointConfig] = useState(false);
+  const [showPointModal, setShowPointModal] = useState(false);
+  const [pointOrder, setPointOrder] = useState(null); // { id, status, ... } da nossa API
+  const [pointStatus, setPointStatus] = useState(""); // creating | waiting | processing | processed | canceled | failed | expired | action_required
+  const [pointError, setPointError] = useState("");
+  const [isCancelingPoint, setIsCancelingPoint] = useState(false);
+  const pointPollRef = useRef(null);
+  const pointPendingSaleRef = useRef(null); // { paymentMethodStr, needsVale }
 
   // DESCONTO/CUPOM
   const [descontoTipo, setDescontoTipo] = useState("");
@@ -202,10 +215,21 @@ const PDV = () => {
     fetchProducts();
     fetchOrigens();
     fetchFormasPagamento();
+    fetchPointConfig();
     fetchCaixaAtual();
     fetchUltimosPedidos();
     fetchUnitEquivalences();
     iniciarFollowUp();
+  }, []);
+
+  // Parar o polling da maquininha ao desmontar o componente
+  useEffect(() => {
+    return () => {
+      if (pointPollRef.current) {
+        clearInterval(pointPollRef.current);
+        pointPollRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -362,6 +386,240 @@ const PDV = () => {
       setMessage({ show: true, text: "Erro ao excluir forma de pagamento!", type: "error" });
       setTimeout(() => setMessage(null), 3000);
     }
+  };
+
+  // ===== MERCADO PAGO POINT =====
+  const fetchPointConfig = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/point/config`);
+      setPointConfig(response.data);
+    } catch (error) {
+      // 503 = MP não configurado no servidor; mantém pointConfig null (recurso desativado)
+      console.error("Erro ao buscar configuração do Point:", error?.response?.data || error.message);
+      setPointConfig(null);
+    }
+  };
+
+  const fetchPointTerminals = async () => {
+    setIsLoadingPointTerminals(true);
+    try {
+      const response = await axios.get(`${API_URL}/api/point/terminals`);
+      setPointTerminals(response.data?.terminals || []);
+    } catch (error) {
+      setMessage({ show: true, text: error?.response?.data?.error || "Erro ao listar maquininhas!", type: "error" });
+      setTimeout(() => setMessage(null), 4000);
+    } finally {
+      setIsLoadingPointTerminals(false);
+    }
+  };
+
+  const handleSetPointTerminalMode = async (terminalId, mode) => {
+    try {
+      await axios.post(`${API_URL}/api/point/terminals/mode`, { terminalId, mode });
+      setMessage({ show: true, text: `Modo do terminal alterado para ${mode}.`, type: "success" });
+      setTimeout(() => setMessage(null), 3000);
+      fetchPointTerminals();
+    } catch (error) {
+      setMessage({ show: true, text: error?.response?.data?.error || "Erro ao alterar modo do terminal!", type: "error" });
+      setTimeout(() => setMessage(null), 4000);
+    }
+  };
+
+  const handleSavePointConfig = async (patch) => {
+    setIsSavingPointConfig(true);
+    try {
+      const response = await axios.put(`${API_URL}/api/point/config`, patch);
+      setPointConfig(response.data);
+      setMessage({ show: true, text: "Configuração da maquininha salva!", type: "success" });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      setMessage({ show: true, text: error?.response?.data?.error || "Erro ao salvar configuração da maquininha!", type: "error" });
+      setTimeout(() => setMessage(null), 4000);
+    } finally {
+      setIsSavingPointConfig(false);
+    }
+  };
+
+  const handleTogglePointForma = async (id, campo, valor) => {
+    try {
+      await axios.put(`${API_URL}/api/pdv-formas-pagamento/${id}`, { [campo]: valor });
+      fetchFormasPagamento();
+    } catch (e) {
+      setMessage({ show: true, text: "Erro ao atualizar integração da maquininha!", type: "error" });
+      setTimeout(() => setMessage(null), 3000);
+    }
+  };
+
+  // Retorna a config Point de uma forma de pagamento (pelo valor interno)
+  const getFormaPoint = (valor) => {
+    const f = formasPagamento.find((fp) => fp.valor === valor);
+    if (!f || !f.pointEnabled) return null;
+    return { pointEnabled: true, pointType: f.pointType || null };
+  };
+
+  // Indica se o pagamento atual deve passar pela maquininha (somente pagamento único, não dividido)
+  const pointFormaAtiva = () => {
+    if (isSplitPayment) return null; // maquininha só no pagamento único
+    if (!pointConfig?.configured) return null;
+    return getFormaPoint(paymentMethod);
+  };
+
+  const stopPointPolling = () => {
+    if (pointPollRef.current) {
+      clearInterval(pointPollRef.current);
+      pointPollRef.current = null;
+    }
+  };
+
+  // Cria a venda no backend (POST /api/sales). Retorna a venda criada (com id).
+  const criarVenda = async (paymentMethodStr, needsVale) => {
+    const needsPendente = isSplitPayment ? splitPayments.some((s) => s.forma === "pendente") : paymentMethod === "pendente";
+    const saleData = {
+      items: cart,
+      total: finalTotal,
+      paymentMethod: paymentMethodStr,
+      customerName: selectedClient ? selectedClient.name : (customerName || "Cliente não identificado"),
+      amountReceived: !isSplitPayment && paymentMethod === "dinheiro" ? parseFloat(amountReceived) : finalTotal,
+      change: !isSplitPayment && paymentMethod === "dinheiro" ? Math.max(parseFloat(amountReceived) - finalTotal, 0) : 0,
+      date: new Date().toISOString(),
+      discount: desconto > 0 ? { tipo: cupomAplicado ? cupomAplicado.tipo : (descontoTipo || "").toUpperCase(), valor: desconto, cupomCodigo: cupomAplicado?.codigo || null } : null,
+      splitPayments: isSplitPayment ? splitPayments.filter((s) => s.forma && s.valor).map((s) => ({ forma: s.forma, valor: parseFloat(s.valor) })) : null,
+      pendente: needsPendente && selectedClient ? { clientId: selectedClient.id } : null,
+      vale: needsVale ? { password: valePassword } : null,
+      subtotal: total,
+      finalTotal: finalTotal,
+    };
+    const token = localStorage.getItem("authToken");
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const response = await axios.post(`${API_URL}/api/sales`, saleData, { headers });
+    if (needsVale) {
+      try {
+        await registrarGastosBarPorVale(
+          cart,
+          finalTotal,
+          isSplitPayment ? splitPayments.filter((s) => s.forma && s.valor) : null
+        );
+        fetchGastosBarSemanas();
+        fetchGastosBarResumo();
+      } catch (error) {
+        console.error("Erro ao registrar gastos do bar via Vale:", error);
+      }
+    }
+    return response.data;
+  };
+
+  // Inicia o pagamento na maquininha: cria a order no Point e começa o polling
+  const iniciarPagamentoPoint = async (paymentMethodStr, paymentType, needsVale) => {
+    setIsLoading(true);
+    setPointError("");
+    setPointOrder(null);
+    setPointStatus("creating");
+    setShowPointModal(true);
+    pointPendingSaleRef.current = { paymentMethodStr, needsVale };
+    try {
+      const response = await axios.post(`${API_URL}/api/point/orders`, {
+        amount: finalTotal,
+        paymentType: paymentType || null,
+        description: `Venda PDV - ${cart.length} item(ns)`,
+        operator: auth?.userName || localStorage.getItem("userName") || null,
+      });
+      setPointOrder(response.data);
+      setPointStatus("waiting");
+      iniciarPollingPoint(response.data.id);
+    } catch (error) {
+      setPointStatus("failed");
+      setPointError(error?.response?.data?.error || "Erro ao enviar o pagamento para a maquininha.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const iniciarPollingPoint = (orderId) => {
+    stopPointPolling();
+    pointPollRef.current = setInterval(async () => {
+      try {
+        const response = await axios.get(`${API_URL}/api/point/orders/${orderId}`);
+        const order = response.data;
+        setPointOrder(order);
+        const st = order.status;
+        if (st === "processed") {
+          stopPointPolling();
+          await finalizarVendaPoint(order);
+        } else if (st === "canceled" || st === "failed" || st === "expired") {
+          stopPointPolling();
+          setPointStatus(st);
+          setPointError(
+            st === "expired" ? "Tempo esgotado. O pagamento não foi concluído na maquininha."
+              : st === "canceled" ? "Pagamento cancelado na maquininha."
+                : "Pagamento recusado. Tente novamente."
+          );
+        } else if (st === "action_required") {
+          setPointStatus("action_required");
+        } else {
+          setPointStatus("waiting");
+        }
+      } catch (error) {
+        // Erros transitórios de rede não interrompem o polling
+        console.error("Erro ao consultar status da maquininha:", error?.response?.data || error.message);
+      }
+    }, 3000);
+  };
+
+  // Pagamento aprovado na maquininha → cria a venda e vincula o saleId à order
+  const finalizarVendaPoint = async (order) => {
+    setPointStatus("processing");
+    const pending = pointPendingSaleRef.current || {};
+    try {
+      const venda = await criarVenda(pending.paymentMethodStr, pending.needsVale);
+      if (venda?.id) {
+        try {
+          await axios.patch(`${API_URL}/api/point/orders/${order.id}`, { saleId: venda.id });
+        } catch (linkErr) {
+          console.error("Erro ao vincular venda à order do Point (não crítico):", linkErr?.response?.data || linkErr.message);
+        }
+      }
+      setPointStatus("processed");
+      setShowPointModal(false);
+      setShowPaymentModal(false);
+      setMessage({ show: true, text: "Pagamento aprovado na maquininha e venda registrada!", type: "success" });
+      clearCart();
+      fetchProducts();
+      setTimeout(() => setMessage(null), 4000);
+    } catch (error) {
+      // Pagamento foi aprovado, mas a venda falhou (ex: estoque). Alertar o operador.
+      setPointStatus("sale_error");
+      const errorMsg = error?.response?.data?.error || "Pagamento aprovado, mas houve erro ao registrar a venda. Verifique o estoque e registre manualmente.";
+      setPointError(errorMsg);
+    }
+  };
+
+  const cancelarPagamentoPoint = async () => {
+    if (!pointOrder?.id) {
+      stopPointPolling();
+      setShowPointModal(false);
+      return;
+    }
+    setIsCancelingPoint(true);
+    try {
+      await axios.post(`${API_URL}/api/point/orders/${pointOrder.id}/cancel`);
+      stopPointPolling();
+      setPointStatus("canceled");
+      setPointError("Pagamento cancelado.");
+    } catch (error) {
+      setMessage({ show: true, text: error?.response?.data?.error || "Não foi possível cancelar. Verifique a maquininha.", type: "error" });
+      setTimeout(() => setMessage(null), 4000);
+    } finally {
+      setIsCancelingPoint(false);
+    }
+  };
+
+  const fecharModalPoint = () => {
+    stopPointPolling();
+    setShowPointModal(false);
+    setPointOrder(null);
+    setPointStatus("");
+    setPointError("");
+    pointPendingSaleRef.current = null;
   };
 
   // CLIENTES FIADO - fetch para fluxo Pendente
@@ -1583,6 +1841,13 @@ const PDV = () => {
       : getFormaNome(paymentMethod);
 
     const needsVale = isSplitPayment ? splitPayments.some(s => s.forma === "vale") : paymentMethod === "vale";
+
+    // Pagamento presencial na maquininha (Mercado Pago Point) — apenas venda normal, forma habilitada
+    const pointForma = comandaEmPagamento ? null : pointFormaAtiva();
+    if (pointForma) {
+      iniciarPagamentoPoint(paymentMethodStr, pointForma.pointType, needsVale);
+      return;
+    }
 
     // Se é pagamento de comanda, apenas fechar a comanda (estoque já foi baixado)
     if (comandaEmPagamento) {
@@ -3642,6 +3907,7 @@ const PDV = () => {
                           <th>Nome</th>
                           <th>Valor Interno</th>
                           <th>Status</th>
+                          <th>Maquininha (Point)</th>
                           <th>Ações</th>
                         </tr>
                       </thead>
@@ -3655,6 +3921,28 @@ const PDV = () => {
                                 {f.ativo ? "Ativa" : "Inativa"}
                               </span>
                             </td>
+                            <td className="pdv-point-forma-cell">
+                              <label className="pdv-point-forma-toggle" title="Cobrar esta forma na maquininha Point">
+                                <input
+                                  type="checkbox"
+                                  checked={!!f.pointEnabled}
+                                  disabled={!pointConfig?.tokenConfigured}
+                                  onChange={(e) => handleTogglePointForma(f.id, "pointEnabled", e.target.checked)}
+                                />
+                                <span>Maquininha</span>
+                              </label>
+                              {f.pointEnabled && (
+                                <select
+                                  className="pdv-point-forma-type"
+                                  value={f.pointType || ""}
+                                  onChange={(e) => handleTogglePointForma(f.id, "pointType", e.target.value)}
+                                >
+                                  <option value="">Escolher no terminal</option>
+                                  <option value="credit_card">Crédito</option>
+                                  <option value="debit_card">Débito</option>
+                                </select>
+                              )}
+                            </td>
                             <td className="pdv-config-actions">
                               <button onClick={() => handleToggleFormaPagamento(f.id, f.ativo)} title={f.ativo ? "Desativar" : "Ativar"}>
                                 {f.ativo ? "⏸" : "▶"}
@@ -3667,6 +3955,86 @@ const PDV = () => {
                     </table>
                   </div>
                 )}
+
+                {/* ---- Configuração da maquininha Mercado Pago Point ---- */}
+                <div className="pdv-point-config">
+                  <h4 className="pdv-point-config-title"><FaCashRegister /> Maquininha Mercado Pago Point</h4>
+                  {!pointConfig?.tokenConfigured && (
+                    <p className="pdv-config-empty">
+                      A integração com a maquininha ainda não está disponível. Verifique se o token do Mercado Pago (MP_ACCESS_TOKEN) foi configurado no servidor.
+                    </p>
+                  )}
+                  {pointConfig?.tokenConfigured && (
+                    <>
+                      <div className="pdv-point-config-row">
+                        <button className="pdv-config-btn-add" onClick={fetchPointTerminals} disabled={isLoadingPointTerminals}>
+                          {isLoadingPointTerminals ? <FaSpinner className="loading-iconn" /> : <><FaSearch /> Buscar maquininhas</>}
+                        </button>
+                        <span className="pdv-point-config-current">
+                          Terminal atual: <strong>{pointConfig.terminal_id || "não definido"}</strong>
+                        </span>
+                      </div>
+
+                      {pointTerminals.length > 0 && (
+                        <div className="pdv-config-table-wrap">
+                          <table className="pdv-config-table">
+                            <thead>
+                              <tr>
+                                <th>ID do Terminal</th>
+                                <th>Modo</th>
+                                <th>Ações</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {pointTerminals.map((t) => (
+                                <tr key={t.id} className={pointConfig.terminal_id === t.id ? "pdv-point-terminal-selected" : ""}>
+                                  <td><strong>{t.id}</strong></td>
+                                  <td>{t.operating_mode || "-"}</td>
+                                  <td className="pdv-config-actions">
+                                    <button
+                                      onClick={() => handleSavePointConfig({ terminal_id: t.id })}
+                                      disabled={isSavingPointConfig}
+                                      title="Usar este terminal no PDV"
+                                    >
+                                      {pointConfig.terminal_id === t.id ? "✔ Selecionado" : "Selecionar"}
+                                    </button>
+                                    {t.operating_mode !== "PDV" && (
+                                      <button onClick={() => handleSetPointTerminalMode(t.id, "PDV")} title="Ativar modo PDV (integrado)">
+                                        Ativar modo PDV
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      <div className="pdv-point-config-options">
+                        <label className="pdv-point-forma-toggle">
+                          <input
+                            type="checkbox"
+                            checked={pointConfig.print_on_terminal === "buyer_ticket"}
+                            onChange={(e) => handleSavePointConfig({ print_on_terminal: e.target.checked ? "buyer_ticket" : "no_ticket" })}
+                          />
+                          <span>Imprimir comprovante no terminal</span>
+                        </label>
+                        <label className="pdv-point-config-installments">
+                          <span>Parcelas padrão (crédito):</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max="12"
+                            value={pointConfig.default_installments || 1}
+                            onChange={(e) => setPointConfig({ ...pointConfig, default_installments: parseInt(e.target.value) || 1 })}
+                            onBlur={(e) => handleSavePointConfig({ default_installments: parseInt(e.target.value) || 1 })}
+                          />
+                        </label>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             )}
 
@@ -3994,9 +4362,61 @@ const PDV = () => {
                 onClick={confirmPayment}
                 disabled={isLoading || !canConfirmPayment()}
               >
-                {isLoading ? <FaSpinner className="loading-iconn" /> : (comandaEmPagamento ? `Pagar Comanda #${comandaEmPagamento.id}` : "Confirmar Pagamento")}
+                {isLoading ? <FaSpinner className="loading-iconn" /> : (comandaEmPagamento ? `Pagar Comanda #${comandaEmPagamento.id}` : (!isSplitPayment && pointFormaAtiva() ? "Enviar para maquininha" : "Confirmar Pagamento"))}
               </button>
               <button onClick={cancelPayment}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Mercado Pago Point (maquininha) */}
+      {showPointModal && (
+        <div className="modal">
+          <div className="modal-content payment-modal pdv-point-modal">
+            <h3 style={{ textShadow: "none" }}><FaCashRegister /> Pagamento na Maquininha</h3>
+
+            <div className="pdv-point-body">
+              <div className="pdv-point-amount">{formatCurrency(finalTotal)}</div>
+              <div className="pdv-point-forma">{getFormaNome(paymentMethod)}</div>
+
+              {(pointStatus === "creating" || pointStatus === "waiting" || pointStatus === "action_required" || pointStatus === "processing") && (
+                <div className="pdv-point-status pdv-point-status-waiting">
+                  <FaSpinner className="loading-iconn" />
+                  <span>
+                    {pointStatus === "creating" && "Enviando para a maquininha..."}
+                    {pointStatus === "waiting" && "Aguardando pagamento na maquininha..."}
+                    {pointStatus === "action_required" && "Siga as instruções na maquininha..."}
+                    {pointStatus === "processing" && "Pagamento aprovado! Registrando a venda..."}
+                  </span>
+                </div>
+              )}
+
+              {pointStatus === "processed" && (
+                <div className="pdv-point-status pdv-point-status-ok">
+                  <FaCheck /> <span>Pagamento aprovado!</span>
+                </div>
+              )}
+
+              {(pointStatus === "canceled" || pointStatus === "failed" || pointStatus === "expired" || pointStatus === "sale_error") && (
+                <div className="pdv-point-status pdv-point-status-error">
+                  <FaExclamationTriangle /> <span>{pointError || "Pagamento não concluído."}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-buttons">
+              {(pointStatus === "creating" || pointStatus === "waiting" || pointStatus === "action_required") && (
+                <button onClick={cancelarPagamentoPoint} disabled={isCancelingPoint}>
+                  {isCancelingPoint ? <FaSpinner className="loading-iconn" /> : "Cancelar na maquininha"}
+                </button>
+              )}
+              {(pointStatus === "canceled" || pointStatus === "failed" || pointStatus === "expired") && (
+                <button onClick={fecharModalPoint}>Fechar</button>
+              )}
+              {pointStatus === "sale_error" && (
+                <button onClick={fecharModalPoint}>Entendi</button>
+              )}
             </div>
           </div>
         </div>
