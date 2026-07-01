@@ -391,6 +391,7 @@
   border-radius: 8px 8px 0 0;
   cursor: pointer;
   transition: color 0.2s, background 0.2s;
+  text-shadow: none;
 }
 .pdv-venda-right-tabs button:hover:not(.active) {
   color: rgba(255,255,255,0.85);
@@ -2263,12 +2264,14 @@ text-shadow: none;
   color: #555;
   border-bottom: 2px solid #e0e0e0;
   white-space: nowrap;
+  text-shadow: none;
 }
 
 .pdv-config-table tbody td {
   padding: 10px 12px;
   border-bottom: 1px solid #f0f0f0;
   color: #333;
+  text-shadow: none;
 }
 
 .pdv-config-table tbody tr:hover {
@@ -2301,11 +2304,13 @@ text-shadow: none;
 .pdv-config-badge.ativo {
   background: #e8f5e9;
   color: #2e7d32;
+  text-shadow: none;
 }
 
 .pdv-config-badge.inativo {
   background: #f5f5f5;
   color: #999;
+  text-shadow: none;
 }
 
 .pdv-config-badge.alerta {
@@ -2314,12 +2319,13 @@ text-shadow: none;
   margin-left: 4px;
   font-size: 12px;
   padding: 1px 6px;
+  text-shadow: none;
 }
 
 /* Actions */
 .pdv-config-actions {
-  display: flex;
-  gap: 6px;
+  white-space: nowrap;
+  vertical-align: middle;
 }
 
 .pdv-config-actions button {
@@ -2327,9 +2333,11 @@ text-shadow: none;
   border: 1px solid #e0e0e0;
   border-radius: 6px;
   padding: 5px 8px;
+  margin-right: 6px;
   cursor: pointer;
   font-size: 14px;
   transition: background 0.2s;
+  text-shadow: none;
 }
 
 .pdv-config-actions button:hover {
@@ -5384,13 +5392,14 @@ text-shadow: none;
 
 
 /* ===== Saque junto da venda ===== */
-.pdv-saque-venda-section { margin: 10px 0; padding: 10px 12px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 8px; }
-.pdv-saque-venda-label { display: block; font-size: 0.85rem; font-weight: 700; color: #065f46; margin-bottom: 6px; }
-.pdv-saque-venda-input { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
-.pdv-saque-venda-preview { margin-top: 8px; display: flex; flex-direction: column; gap: 3px; }
-.pdv-saque-venda-row { display: flex; justify-content: space-between; font-size: 0.82rem; color: #334155; }
+.pdv-saque-venda-section { margin: 10px 0; padding: 10px 12px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 8px; text-shadow:none; }
+.pdv-saque-venda-label { display: block; font-size: 0.85rem; font-weight: 700; color: #065f46; margin-bottom: 6px; text-shadow:none; }
+.pdv-saque-venda-input { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; text-shadow:none; }
+.pdv-saque-venda-preview { margin-top: 8px; display: flex; flex-direction: column; gap: 3px; text-shadow:none; }
+.pdv-saque-venda-row { display: flex; justify-content: space-between; font-size: 0.82rem; color: #334155; text-shadow:none; }
 .pdv-saque-venda-total .total-value { color: #10b981; }
 
+.pdv-saque-venda-row span { text-shadow:none; }
 
 /* ===== Mercado Pago Point (maquininha) ===== */
 .pdv-point-modal { max-width: 420px; }
@@ -5404,17 +5413,20 @@ text-shadow: none;
 
 /* Config da maquininha */
 .pdv-point-config { margin-top: 22px; padding-top: 18px; border-top: 1px solid #2a2a4a; }
-.pdv-point-config-title { display: flex; align-items: center; gap: 8px; color: #e2e8f0; font-size: 1.05rem; margin-bottom: 12px; }
+.pdv-point-config-title { display: flex; align-items: center; gap: 8px; font-size: 1.05rem; margin-bottom: 12px; text-shadow:none; color:#4834d4 }
 .pdv-point-config-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
-.pdv-point-config-current { color: #94a3b8; font-size: 0.9rem; }
+.pdv-point-config-current { color: #94a3b8; font-size: 0.9rem; text-shadow: none;}
 .pdv-point-config-options { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; margin-top: 14px; }
 .pdv-point-config-installments { display: flex; align-items: center; gap: 8px; color: #cbd5e1; font-size: 0.9rem; }
-.pdv-point-config-installments input { width: 64px; padding: 6px 8px; border-radius: 6px; border: 1px solid #2a2a4a; background: #12122a; color: #e2e8f0; }
+.pdv-point-config-installments input { width: 64px; padding: 6px 8px; border-radius: 6px; border: 1px solid #2a2a4a; background: #12122a; color: #e2e8f0; text-shadow: none; }
+.pdv-point-config-installments span { text-shadow: none; }
+
 .pdv-point-terminal-selected td { background: rgba(16,185,129,0.08); }
 
 /* Célula da forma na tabela */
-.pdv-point-forma-cell { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
-.pdv-point-forma-toggle { display: flex; align-items: center; gap: 6px; color: #cbd5e1; font-size: 0.85rem; cursor: pointer; }
+.pdv-point-forma-cell { vertical-align: middle; }
+.pdv-point-forma-toggle { display: flex; align-items: center; gap: 6px; color: #cbd5e1; font-size: 0.85rem; cursor: pointer; text-shadow: none; }
 .pdv-point-forma-toggle input { cursor: pointer; }
-.pdv-point-forma-type { padding: 4px 8px; border-radius: 6px; border: 1px solid #2a2a4a; background: #12122a; color: #e2e8f0; font-size: 0.82rem; }
-.pdv-point-forma-hint { font-size: 0.72rem; color: #94a3b8; font-style: italic; }
+.pdv-point-forma-toggle span { text-shadow:none; color:#000; }
+.pdv-point-forma-type { display: block; margin-top: 6px; padding: 4px 8px; border-radius: 6px; border: 1px solid #2a2a4a; background: #12122a; color: #e2e8f0; font-size: 0.82rem; text-shadow: none; }
+.pdv-point-forma-hint { display: block; margin-top: 4px; font-size: 0.72rem; color: #94a3b8; font-style: italic; text-shadow: none; }
