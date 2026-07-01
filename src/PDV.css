@@ -5383,6 +5383,14 @@ text-shadow: none;
 .pdv-online-cancelar-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 
+/* ===== Saque junto da venda ===== */
+.pdv-saque-venda-section { margin: 10px 0; padding: 10px 12px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 8px; }
+.pdv-saque-venda-label { display: block; font-size: 0.85rem; font-weight: 700; color: #065f46; margin-bottom: 6px; }
+.pdv-saque-venda-input { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
+.pdv-saque-venda-preview { margin-top: 8px; display: flex; flex-direction: column; gap: 3px; }
+.pdv-saque-venda-row { display: flex; justify-content: space-between; font-size: 0.82rem; color: #334155; }
+.pdv-saque-venda-total .total-value { color: #10b981; }
+
 
 /* ===== Mercado Pago Point (maquininha) ===== */
 .pdv-point-modal { max-width: 420px; }

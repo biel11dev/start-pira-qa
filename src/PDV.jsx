@@ -61,6 +61,8 @@ const PDV = () => {
   const [taxaSaque, setTaxaSaque] = useState(30); // percentual, ex: 30 = 30%
   const [taxaSaqueInput, setTaxaSaqueInput] = useState("");
   const [isLoadingTaxaSaque, setIsLoadingTaxaSaque] = useState(false);
+  // SAQUE junto da venda (checkout combinado)
+  const [saqueVendaValor, setSaqueVendaValor] = useState("");
 
   // ORIGENS DE SALDO (BAG / MÁQUINA / CAIXA)
   const [origemSaldos, setOrigemSaldos] = useState([]);
@@ -258,6 +260,11 @@ const PDV = () => {
   };
   const desconto = calcDesconto();
   const finalTotal = Math.max(total - desconto, 0);
+  // Saque junto da venda: cliente recebe em dinheiro e paga o valor + taxa na máquina
+  const saqueVendaNum = parseFloat(saqueVendaValor) || 0;
+  const saqueVendaFee = saqueVendaNum > 0 ? saqueVendaNum * (taxaSaque / 100) : 0;
+  const saqueVendaCobrar = saqueVendaNum + saqueVendaFee; // acréscimo cobrado na máquina pelo saque
+  const valorCobrado = finalTotal + saqueVendaCobrar; // total efetivamente cobrado do cliente
   const somaSplit = splitPayments.reduce((sum, s) => sum + (parseFloat(s.valor) || 0), 0);
 
   const getFormaNome = (valor) => {
@@ -268,8 +275,8 @@ const PDV = () => {
   useEffect(() => {
     // Calcular troco
     const receivedAmount = parseFloat(amountReceived) || 0;
-    setChange(receivedAmount - finalTotal);
-  }, [amountReceived, finalTotal]);
+    setChange(receivedAmount - valorCobrado);
+  }, [amountReceived, valorCobrado]);
 
   const fetchProducts = () => {
     axios
@@ -479,13 +486,14 @@ const PDV = () => {
       total: finalTotal,
       paymentMethod: paymentMethodStr,
       customerName: selectedClient ? selectedClient.name : (customerName || "Cliente não identificado"),
-      amountReceived: !isSplitPayment && paymentMethod === "dinheiro" ? parseFloat(amountReceived) : finalTotal,
-      change: !isSplitPayment && paymentMethod === "dinheiro" ? Math.max(parseFloat(amountReceived) - finalTotal, 0) : 0,
+      amountReceived: !isSplitPayment && paymentMethod === "dinheiro" ? parseFloat(amountReceived) : valorCobrado,
+      change: !isSplitPayment && paymentMethod === "dinheiro" ? Math.max(parseFloat(amountReceived) - valorCobrado, 0) : 0,
       date: new Date().toISOString(),
       discount: desconto > 0 ? { tipo: cupomAplicado ? cupomAplicado.tipo : (descontoTipo || "").toUpperCase(), valor: desconto, cupomCodigo: cupomAplicado?.codigo || null } : null,
       splitPayments: isSplitPayment ? splitPayments.filter((s) => s.forma && s.valor).map((s) => ({ forma: s.forma, valor: parseFloat(s.valor) })) : null,
       pendente: needsPendente && selectedClient ? { clientId: selectedClient.id } : null,
       vale: needsVale ? { password: valePassword } : null,
+      saque: saqueVendaNum > 0 ? { valor: saqueVendaNum, taxa: taxaSaque } : null,
       subtotal: total,
       finalTotal: finalTotal,
     };
@@ -518,9 +526,9 @@ const PDV = () => {
     pointPendingSaleRef.current = { paymentMethodStr, needsVale };
     try {
       const response = await axios.post(`${API_URL}/api/point/orders`, {
-        amount: finalTotal,
+        amount: valorCobrado,
         paymentType: paymentType || null,
-        description: `Venda PDV - ${cart.length} item(ns)`,
+        description: `Venda PDV - ${cart.length} item(ns)${saqueVendaNum > 0 ? ` + saque R$${saqueVendaNum.toFixed(2)}` : ""}`,
         operator: auth?.userName || localStorage.getItem("userName") || null,
       });
       setPointOrder(response.data);
@@ -1275,6 +1283,9 @@ const PDV = () => {
     if (activeTab === "add" || activeTab === "vale") {
       fetchOrigemSaldos();
     }
+    if (activeTab === "venda") {
+      fetchTaxaSaque();
+    }
     if (activeTab === "config") {
       fetchCupons();
       fetchTaxas();
@@ -1767,6 +1778,7 @@ const PDV = () => {
     setValePasswordVerified(false);
     setComandaEmPagamento(null);
     setComandaClienteNome("");
+    setSaqueVendaValor("");
   };
 
   const handlePayment = () => {
@@ -1806,7 +1818,7 @@ const PDV = () => {
     const needsDinheiro = isSplitPayment ? splitPayments.some(s => s.forma === "dinheiro") : paymentMethod === "dinheiro";
     if (needsPendente && !selectedClient) return false;
     if (needsVale && !valePasswordVerified) return false;
-    if (needsDinheiro && !isSplitPayment && parseFloat(amountReceived) < finalTotal) return false;
+    if (needsDinheiro && !isSplitPayment && parseFloat(amountReceived) < valorCobrado) return false;
     if (needsDinheiro && isSplitPayment) {
       const dSplit = splitPayments.find(s => s.forma === "dinheiro");
       if (dSplit && parseFloat(amountReceived) < parseFloat(dSplit.valor)) return false;
@@ -1816,6 +1828,13 @@ const PDV = () => {
 
   const confirmPayment = () => {
     if (!canConfirmPayment()) return;
+
+    // Saque junto da venda não é compatível com pagamento dividido
+    if (saqueVendaNum > 0 && isSplitPayment) {
+      setMessage({ show: true, text: "Saque não está disponível com pagamento dividido. Remova o saque ou o split.", type: "error" });
+      setTimeout(() => setMessage(null), 4000);
+      return;
+    }
 
     // Check comanda limit for pendente (usa total de comandas abertas, não totalDebt)
     const needsPendente = isSplitPayment ? splitPayments.some(s => s.forma === "pendente") : paymentMethod === "pendente";
@@ -1878,13 +1897,14 @@ const PDV = () => {
       total: finalTotal,
       paymentMethod: paymentMethodStr,
       customerName: selectedClient ? selectedClient.name : (customerName || "Cliente não identificado"),
-      amountReceived: !isSplitPayment && paymentMethod === "dinheiro" ? parseFloat(amountReceived) : finalTotal,
-      change: !isSplitPayment && paymentMethod === "dinheiro" ? Math.max(parseFloat(amountReceived) - finalTotal, 0) : 0,
+      amountReceived: !isSplitPayment && paymentMethod === "dinheiro" ? parseFloat(amountReceived) : valorCobrado,
+      change: !isSplitPayment && paymentMethod === "dinheiro" ? Math.max(parseFloat(amountReceived) - valorCobrado, 0) : 0,
       date: new Date().toISOString(),
       discount: desconto > 0 ? { tipo: cupomAplicado ? cupomAplicado.tipo : (descontoTipo || "").toUpperCase(), valor: desconto, cupomCodigo: cupomAplicado?.codigo || null } : null,
       splitPayments: isSplitPayment ? splitPayments.filter(s => s.forma && s.valor).map(s => ({ forma: s.forma, valor: parseFloat(s.valor) })) : null,
       pendente: needsPendente && selectedClient ? { clientId: selectedClient.id } : null,
       vale: needsVale ? { password: valePassword } : null,
+      saque: saqueVendaNum > 0 ? { valor: saqueVendaNum, taxa: taxaSaque } : null,
       subtotal: total,
       finalTotal: finalTotal,
     };
@@ -2379,10 +2399,46 @@ const PDV = () => {
               </div>
             )}
 
+            {!comandaEmPagamento && (
+              <div className="pdv-saque-venda-section">
+                <label className="pdv-saque-venda-label">
+                  💵 Saque (dinheiro para o cliente)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Ex: 40,00 (opcional)"
+                  value={saqueVendaValor}
+                  onChange={(e) => setSaqueVendaValor(e.target.value)}
+                  className="pdv-saque-venda-input"
+                />
+                {saqueVendaNum > 0 && (
+                  <div className="pdv-saque-venda-preview">
+                    <div className="pdv-saque-venda-row">
+                      <span>Cliente recebe:</span>
+                      <strong>{formatCurrency(saqueVendaNum)}</strong>
+                    </div>
+                    <div className="pdv-saque-venda-row">
+                      <span>Taxa ({taxaSaque}%):</span>
+                      <span>+ {formatCurrency(saqueVendaFee)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {desconto > 0 && (
               <div className="total-section pdv-final-total">
                 <div className="total-label">Total Final:</div>
                 <div className="total-value">{formatCurrency(finalTotal)}</div>
+              </div>
+            )}
+
+            {saqueVendaNum > 0 && (
+              <div className="total-section pdv-final-total pdv-saque-venda-total">
+                <div className="total-label">Total a cobrar:</div>
+                <div className="total-value">{formatCurrency(valorCobrado)}</div>
               </div>
             )}
 
@@ -4204,6 +4260,22 @@ const PDV = () => {
                 <span className="sombra-modal">Total:</span>
                 <span className="sombra-modal">{formatCurrency(finalTotal)}</span>
               </div>
+              {saqueVendaNum > 0 && (
+                <>
+                  <div className="summary-row">
+                    <span className="sombra-modal">Saque (cliente recebe):</span>
+                    <span className="sombra-modal">{formatCurrency(saqueVendaNum)}</span>
+                  </div>
+                  <div className="summary-row">
+                    <span className="sombra-modal">Taxa do saque ({taxaSaque}%):</span>
+                    <span className="sombra-modal">+ {formatCurrency(saqueVendaFee)}</span>
+                  </div>
+                  <div className="summary-row pdv-summary-final">
+                    <span className="sombra-modal">Total a cobrar:</span>
+                    <span className="sombra-modal">{formatCurrency(valorCobrado)}</span>
+                  </div>
+                </>
+              )}
               <div className="summary-row">
                 <span className="sombra-modal">Pagamento:</span>
                 <span className="sombra-modal">{isSplitPayment ? "Dividido" : getFormaNome(paymentMethod)}</span>
@@ -4371,8 +4443,8 @@ const PDV = () => {
             <h3 style={{ textShadow: "none" }}><FaCashRegister /> Pagamento na Maquininha</h3>
 
             <div className="pdv-point-body">
-              <div className="pdv-point-amount">{formatCurrency(finalTotal)}</div>
-              <div className="pdv-point-forma">{getFormaNome(paymentMethod)}</div>
+              <div className="pdv-point-amount">{formatCurrency(valorCobrado)}</div>
+              <div className="pdv-point-forma">{getFormaNome(paymentMethod)}{saqueVendaNum > 0 ? ` — inclui saque ${formatCurrency(saqueVendaNum)}` : ""}</div>
 
               {(pointStatus === "creating" || pointStatus === "waiting" || pointStatus === "action_required" || pointStatus === "processing") && (
                 <div className="pdv-point-status pdv-point-status-waiting">
