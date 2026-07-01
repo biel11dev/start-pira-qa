@@ -5409,3 +5409,4 @@ text-shadow: none;
 .pdv-point-forma-toggle { display: flex; align-items: center; gap: 6px; color: #cbd5e1; font-size: 0.85rem; cursor: pointer; }
 .pdv-point-forma-toggle input { cursor: pointer; }
 .pdv-point-forma-type { padding: 4px 8px; border-radius: 6px; border: 1px solid #2a2a4a; background: #12122a; color: #e2e8f0; font-size: 0.82rem; }
+.pdv-point-forma-hint { font-size: 0.72rem; color: #94a3b8; font-style: italic; }

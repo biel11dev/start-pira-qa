@@ -3932,15 +3932,9 @@ const PDV = () => {
                                 <span>Maquininha</span>
                               </label>
                               {f.pointEnabled && (
-                                <select
-                                  className="pdv-point-forma-type"
-                                  value={f.pointType || ""}
-                                  onChange={(e) => handleTogglePointForma(f.id, "pointType", e.target.value)}
-                                >
-                                  <option value="">Escolher no terminal</option>
-                                  <option value="credit_card">Crédito</option>
-                                  <option value="debit_card">Débito</option>
-                                </select>
+                                <span className="pdv-point-forma-hint" title="No Point, o cliente escolhe crédito ou débito no próprio terminal">
+                                  Crédito/Débito no terminal
+                                </span>
                               )}
                             </td>
                             <td className="pdv-config-actions">
@@ -4015,8 +4009,8 @@ const PDV = () => {
                         <label className="pdv-point-forma-toggle">
                           <input
                             type="checkbox"
-                            checked={!!pointConfig.print_on_terminal}
-                            onChange={(e) => handleSavePointConfig({ print_on_terminal: e.target.checked })}
+                            checked={pointConfig.print_on_terminal === "buyer_ticket"}
+                            onChange={(e) => handleSavePointConfig({ print_on_terminal: e.target.checked ? "buyer_ticket" : "no_ticket" })}
                           />
                           <span>Imprimir comprovante no terminal</span>
                         </label>
