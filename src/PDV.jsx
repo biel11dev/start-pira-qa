@@ -4009,8 +4009,8 @@ const PDV = () => {
                         <label className="pdv-point-forma-toggle">
                           <input
                             type="checkbox"
-                            checked={pointConfig.print_on_terminal === "buyer_ticket"}
-                            onChange={(e) => handleSavePointConfig({ print_on_terminal: e.target.checked ? "buyer_ticket" : "no_ticket" })}
+                            checked={pointConfig.print_on_terminal === "seller_ticket"}
+                            onChange={(e) => handleSavePointConfig({ print_on_terminal: e.target.checked ? "seller_ticket" : "no_ticket" })}
                           />
                           <span>Imprimir comprovante no terminal</span>
                         </label>
