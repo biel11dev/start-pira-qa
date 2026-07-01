@@ -1995,10 +1995,12 @@ const PDV = () => {
   };
 
   // Busca os pedidos online (origem ONLINE) com filtro opcional por status
-  const fetchPedidosOnline = () => {
+  const fetchPedidosOnline = (statusArg) => {
+    // Usa o status passado explicitamente (evita closure obsoleta ao clicar nos filtros).
+    const statusToUse = statusArg !== undefined ? statusArg : onlineStatusFiltro;
     setIsLoadingOnline(true);
     const params = new URLSearchParams();
-    if (onlineStatusFiltro) params.append("status", onlineStatusFiltro);
+    if (statusToUse) params.append("status", statusToUse);
     axios
       .get(`${API_URL}/api/sales/online?${params.toString()}`)
       .then((res) => {
@@ -4715,19 +4717,19 @@ const PDV = () => {
             <h3 className="sombra-modal"><FaShoppingBag style={{ marginRight: 8 }} /> Pedidos Online</h3>
             <div className="pdv-pedidos-actions">
               <div className="pdv-online-status-filtros">
-                <button className={`pdv-online-filtro-btn ${onlineStatusFiltro === "" ? "active" : ""}`} onClick={() => { setOnlineStatusFiltro(""); setTimeout(fetchPedidosOnline, 0); }}>Todos</button>
+                <button className={`pdv-online-filtro-btn ${onlineStatusFiltro === "" ? "active" : ""}`} onClick={() => { setOnlineStatusFiltro(""); fetchPedidosOnline(""); }}>Todos</button>
                 {PEDIDO_STATUS.map((st) => (
                   <button
                     key={st}
                     className={`pdv-online-filtro-btn pdv-online-filtro-btn--${st} ${onlineStatusFiltro === st ? "active" : ""}`}
-                    onClick={() => { setOnlineStatusFiltro(st); setTimeout(fetchPedidosOnline, 0); }}
+                    onClick={() => { setOnlineStatusFiltro(st); fetchPedidosOnline(st); }}
                   >
                     {PEDIDO_STATUS_LABELS[st]}
                   </button>
                 ))}
-                <button className={`pdv-online-filtro-btn pdv-online-filtro-btn--cancelled ${onlineStatusFiltro === "cancelled" ? "active" : ""}`} onClick={() => { setOnlineStatusFiltro("cancelled"); setTimeout(fetchPedidosOnline, 0); }}>Cancelado</button>
+                <button className={`pdv-online-filtro-btn pdv-online-filtro-btn--cancelled ${onlineStatusFiltro === "cancelled" ? "active" : ""}`} onClick={() => { setOnlineStatusFiltro("cancelled"); fetchPedidosOnline("cancelled"); }}>Cancelado</button>
               </div>
-              <button className="pdv-pedidos-refresh-btn" onClick={fetchPedidosOnline} disabled={isLoadingOnline}>
+              <button className="pdv-pedidos-refresh-btn" onClick={() => fetchPedidosOnline()} disabled={isLoadingOnline}>
                 {isLoadingOnline ? <FaSpinner className="spin" /> : <FaHistory className="sombra-modal" size={13} />} Atualizar
               </button>
             </div>
