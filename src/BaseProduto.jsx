@@ -70,6 +70,9 @@ const ProductList = () => {
   const [minimoValor, setMinimoValor] = useState("");
   const [savingMinimo, setSavingMinimo] = useState(false);
 
+  // ============ FALTA NO ESTOQUE ============
+  const [showFalta, setShowFalta] = useState(true);
+
   // Buscar dados ao carregar
   useEffect(() => {
     fetchEstoque();
@@ -192,6 +195,12 @@ const ProductList = () => {
       }
       hierarchy[parentName].subcategories[subKey].push(item);
       hierarchy[parentName].totalCount++;
+    });
+    // Ordena os itens de cada subcategoria alfabeticamente
+    Object.values(hierarchy).forEach(parent => {
+      Object.keys(parent.subcategories).forEach(subKey => {
+        parent.subcategories[subKey].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+      });
     });
     return hierarchy;
   };
@@ -393,17 +402,19 @@ const ProductList = () => {
       valuecusto: product.valuecusto,
       categoryId: product.categoria_Id || "",
       contabiliza: product.contabiliza !== false, // default true
+      mostrarPdv: product.mostrarPdv !== false, // default true
     });
   };
 
   const handleSaveProduct = () => {
     if (!editingProduct) return;
-    const { name, quantity, unit, value, valuecusto, categoryId, contabiliza } = editingProductData;
+    const { name, quantity, unit, value, valuecusto, categoryId, contabiliza, mostrarPdv } = editingProductData;
     const finalCategoryId = categoryId ? parseInt(categoryId) : null;
     axios
       .put(`${API_URL}/api/estoque_prod/${editingProduct}`, {
         name, quantity, unit, value, valuecusto, categoryId: finalCategoryId,
-        contabiliza: contabiliza !== false
+        contabiliza: contabiliza !== false,
+        mostrarPdv: mostrarPdv !== false
       })
       .then((res) => {
         setEstoqueItems(estoqueItems.map(item => item.id === editingProduct ? res.data : item));
@@ -611,6 +622,12 @@ const ProductList = () => {
   // Obter unidades disponíveis (das equivalências)
   const availableUnits = Object.keys(unitEquivalences);
 
+  // Separa itens zerados (falta no estoque) dos itens com saldo disponível
+  const zeroedItems = filteredItems
+    .filter((item) => (item.quantity ?? 0) <= 0)
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  const activeItems = filteredItems.filter((item) => (item.quantity ?? 0) > 0);
+
   return (
     <div className="bp-container">
       <h2 className="bp-title">Estoque</h2>
@@ -629,6 +646,41 @@ const ProductList = () => {
         </button>
       </div>
 
+      {/* ============ SEÇÃO FALTA NO ESTOQUE ============ */}
+      {zeroedItems.length > 0 && (
+        <div className="bp-falta-section">
+          <div className="bp-falta-header" onClick={() => setShowFalta((s) => !s)}>
+            <div className="bp-falta-title">
+              <FaBell /> Falta no Estoque
+              <span className="bp-falta-count">{zeroedItems.length}</span>
+            </div>
+            <button className="bp-expand-btn" onClick={(e) => { e.stopPropagation(); setShowFalta((s) => !s); }}>
+              {showFalta ? "Ocultar" : "Expandir"}
+            </button>
+          </div>
+
+          {showFalta && (
+            <ul className="bp-falta-list">
+              {zeroedItems.map((item) => (
+                <li className="bp-falta-item" key={item.id}>
+                  <span className="bp-falta-item-name">{item.name}</span>
+                  <span className="bp-falta-item-cat">
+                    {item.category?.parent
+                      ? `${item.category.parent.name} > ${item.category.name}`
+                      : item.category?.name || "—"}
+                  </span>
+                  <span className="bp-falta-item-qtd">0 {item.unit}</span>
+                  <div className="bp-falta-item-actions">
+                    <button className="bp-btn-update" onClick={() => handleUpdateProduct(item)}>Editar</button>
+                    <button className="bp-btn-delete" onClick={() => handleDeleteProduct(item.id)}>Excluir</button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       {/* Header da tabela */}
       <div className="bp-header">
         <div className="bp-header-container">
@@ -645,7 +697,9 @@ const ProductList = () => {
 
       {/* Lista de produtos agrupados */}
       <ul className="bp-list">
-        {Object.entries(groupByCategory(filteredItems)).map(([parentName, parentData]) => (
+        {Object.entries(groupByCategory(activeItems))
+          .sort(([a], [b]) => a.localeCompare(b, "pt-BR"))
+          .map(([parentName, parentData]) => (
           <li key={parentName} className="bp-group">
             <div className="bp-group-header parent-category-header" onClick={() => toggleGroup(parentName)}>
               <div className="bp-group-title"><span>📁 {parentName}</span></div>
@@ -659,7 +713,9 @@ const ProductList = () => {
 
             {expandedGroups[parentName] && (
               <ul className="bp-subcategory-list">
-                {Object.entries(parentData.subcategories).map(([subName, subItems]) => (
+                {Object.entries(parentData.subcategories)
+                  .sort(([a], [b]) => (a === '_direct' ? '' : a).localeCompare(b === '_direct' ? '' : b, "pt-BR"))
+                  .map(([subName, subItems]) => (
                   <li key={`${parentName}-${subName}`} className="bp-subgroup">
                     <div className="bp-group-header subcategory-header" onClick={() => toggleGroup(`${parentName}-${subName}`)}>
                       <div className="bp-group-title">
@@ -707,6 +763,19 @@ const ProductList = () => {
                                     {editingProductData.contabiliza !== false ? 'Baixa estoque automaticamente' : 'Descartável — segue follow-up semanal'}
                                   </span>
                                 </div>
+                                <div className="bp-edit-field bp-edit-field--contabiliza">
+                                  <label className="bp-edit-label">MOSTRAR NO PDV?</label>
+                                  <button
+                                    className={`bp-contabiliza-toggle ${editingProductData.mostrarPdv !== false ? 'bp-contabiliza-toggle--sim' : 'bp-contabiliza-toggle--nao'}`}
+                                    onClick={() => setEditingProductData({ ...editingProductData, mostrarPdv: editingProductData.mostrarPdv === false ? true : false })}
+                                    type="button"
+                                  >
+                                    {editingProductData.mostrarPdv !== false ? 'S' : 'N'}
+                                  </button>
+                                  <span className="bp-contabiliza-hint">
+                                    {editingProductData.mostrarPdv !== false ? 'Aparece na tela de venda do PDV' : 'Oculto no PDV — não aparece para venda'}
+                                  </span>
+                                </div>
                                 <div className="bp-edit-buttons">
                                   <button className="bp-btn-save" onClick={handleSaveProduct}>Salvar</button>
                                   <button className="bp-btn-cancel" onClick={() => setEditingProduct(null)}>Cancelar</button>
@@ -720,6 +789,9 @@ const ProductList = () => {
                                       {item.name}
                                       {item.contabiliza === false && (
                                         <span className="bp-badge-descartavel" title="Descartável — não baixa estoque automaticamente">N</span>
+                                      )}
+                                      {item.mostrarPdv === false && (
+                                        <span className="bp-badge-oculto-pdv" title="Oculto no PDV — não aparece na tela de venda">PDV</span>
                                       )}
                                     </span>
                                   </div>

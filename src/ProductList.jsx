@@ -366,7 +366,7 @@ const ProductList = () => {
   };
 
   const groupProductsByCategory = (products) => {
-    return products.reduce((groups, product) => {
+    const groups = products.reduce((groups, product) => {
       let categoryName = "Sem Categoria";
       if (product.category) {
         if (product.category.parent) {
@@ -382,6 +382,11 @@ const ProductList = () => {
       groups[categoryName].push(product);
       return groups;
     }, {});
+    // Ordena os produtos de cada grupo alfabeticamente
+    Object.keys(groups).forEach((key) => {
+      groups[key].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    });
+    return groups;
   };
 
   const toggleGroup = (categoryName) => {
@@ -678,13 +683,13 @@ const ProductList = () => {
           placeholder="Nome do Produto" 
           disabled={isLoading} 
         />
-        <input 
+        {/* <input 
           type="number" 
           value={quantity} 
           onChange={(e) => setQuantity(e.target.value)} 
           placeholder="Quantidade" 
           disabled={isLoading} 
-        />
+        /> */}
         <input 
           type="number" 
           value={value} 
@@ -873,7 +878,9 @@ const ProductList = () => {
 
         {/* Lista agrupada por categoria */}
         <ul style={{ listStyleType: 'none', padding: 0, margin: 0 }}>
-          {Object.entries(groupProductsByCategory(filteredProducts)).map(([categoryName, categoryProducts]) => (
+          {Object.entries(groupProductsByCategory(filteredProducts))
+            .sort(([a], [b]) => a.localeCompare(b, "pt-BR"))
+            .map(([categoryName, categoryProducts]) => (
             <li key={categoryName} className="product-group">
               <div className="group-header" onClick={() => toggleGroup(categoryName)}>
                 <span>{categoryName}</span>
@@ -905,7 +912,7 @@ const ProductList = () => {
                               className="product-edit-input"
                             />
                           </div>
-                          <div className="product-edit-field">
+                          {/* <div className="product-edit-field">
                             <label className="product-edit-label">Quantidade</label>
                             <input
                               type="number"
@@ -914,7 +921,7 @@ const ProductList = () => {
                               placeholder="Quantidade"
                               className="product-edit-input"
                             />
-                          </div>
+                          </div> */}
                           <div className="product-edit-field">
                             <label className="product-edit-label">Unidade</label>
                             <select 

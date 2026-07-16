@@ -1,6 +1,6 @@
 import axios from "axios";
 import React, { useContext, useEffect, useRef, useState } from "react";
-import { FaSpinner, FaPlus, FaCashRegister, FaCog, FaTrash, FaHandHoldingUsd, FaTrophy, FaSlidersH, FaCamera, FaCheck, FaArrowRight, FaArrowLeft, FaImage, FaTag, FaLock, FaUserPlus, FaSearch, FaEye, FaTimes, FaMoneyBillWave, FaExclamationTriangle, FaHistory, FaDoorOpen, FaDoorClosed, FaArrowDown, FaArrowUp, FaGlassWhiskey, FaPercent, FaUserTie, FaBoxOpen, FaLayerGroup, FaWhatsapp, FaShoppingBag, FaMapMarkerAlt, FaPhone, FaClock } from "react-icons/fa";
+import { FaSpinner, FaPlus, FaCashRegister, FaCog, FaTrash, FaHandHoldingUsd, FaTrophy, FaSlidersH, FaCamera, FaCheck, FaArrowRight, FaArrowLeft, FaImage, FaTag, FaLock, FaUserPlus, FaSearch, FaEye, FaTimes, FaMoneyBillWave, FaExclamationTriangle, FaHistory, FaDoorOpen, FaDoorClosed, FaArrowDown, FaArrowUp, FaGlassWhiskey, FaPercent, FaUserTie, FaBoxOpen, FaLayerGroup, FaWhatsapp, FaShoppingBag, FaMapMarkerAlt, FaPhone, FaClock, FaQrcode, FaCopy } from "react-icons/fa";
 import "./PDV.css";
 import Message from "./Message";
 import { AuthContext } from "./AuthContext";
@@ -57,6 +57,7 @@ const PDV = () => {
   // SAQUE (troco via máquina)
   const [saqueValor, setSaqueValor] = useState("");
   const [saqueObservacao, setSaqueObservacao] = useState("");
+  const [saqueFormaPagamento, setSaqueFormaPagamento] = useState("dinheiro");
   const [isLoadingSaque, setIsLoadingSaque] = useState(false);
   const [taxaSaque, setTaxaSaque] = useState(30); // percentual, ex: 30 = 30%
   const [taxaSaqueInput, setTaxaSaqueInput] = useState("");
@@ -106,6 +107,15 @@ const PDV = () => {
   const [isCancelingPoint, setIsCancelingPoint] = useState(false);
   const pointPollRef = useRef(null);
   const pointPendingSaleRef = useRef(null); // { paymentMethodStr, needsVale }
+
+  // PIX ONLINE (QR na tela)
+  const [showPixModal, setShowPixModal] = useState(false);
+  const [pixData, setPixData] = useState(null); // { id, qrCode, qrCodeBase64, ticketUrl, total }
+  const [pixStatus, setPixStatus] = useState(""); // creating | waiting | processing | processed | failed | canceled | expired | sale_error
+  const [pixError, setPixError] = useState("");
+  const [pixCopiado, setPixCopiado] = useState(false);
+  const pixPollRef = useRef(null);
+  const pixPendingSaleRef = useRef(null); // { paymentMethodStr, needsVale }
 
   // DESCONTO/CUPOM
   const [descontoTipo, setDescontoTipo] = useState("");
@@ -283,7 +293,8 @@ const PDV = () => {
       .get(`${API_URL}/api/estoque_prod`)
       .then((response) => {
         // Excluir itens que são apenas componentes de composição (vinculados via composicaoOpcoes)
-        const vendiveis = response.data.filter(p => !(p._count?.composicaoOpcoes > 0));
+        // e itens marcados para não aparecer no PDV (mostrarPdv === false)
+        const vendiveis = response.data.filter(p => !(p._count?.composicaoOpcoes > 0) && p.mostrarPdv !== false);
         setProducts(vendiveis);
         setFilteredProducts(vendiveis);
         
@@ -628,6 +639,140 @@ const PDV = () => {
     setPointStatus("");
     setPointError("");
     pointPendingSaleRef.current = null;
+  };
+
+  // ===== PIX ONLINE (QR na tela) =====
+
+  // Indica se o pagamento atual deve gerar um Pix online (QR na tela).
+  // Depende apenas do token do Mercado Pago (não usa a maquininha/terminal).
+  const pixOnlineFormaAtiva = () => {
+    if (isSplitPayment) return null; // Pix na tela só no pagamento único
+    if (!pointConfig?.tokenConfigured) return null;
+    const f = formasPagamento.find((fp) => fp.valor === paymentMethod);
+    if (!f || !f.pointEnabled || f.pointType !== "pix_online") return null;
+    return true;
+  };
+
+  const stopPixPolling = () => {
+    if (pixPollRef.current) {
+      clearInterval(pixPollRef.current);
+      pixPollRef.current = null;
+    }
+  };
+
+  // Gera a cobrança Pix e abre o modal com o QR na tela.
+  const iniciarPagamentoPix = async (paymentMethodStr, needsVale) => {
+    setIsLoading(true);
+    setPixError("");
+    setPixData(null);
+    setPixCopiado(false);
+    setPixStatus("creating");
+    setShowPixModal(true);
+    pixPendingSaleRef.current = { paymentMethodStr, needsVale };
+    try {
+      const token = localStorage.getItem("authToken");
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const response = await axios.post(
+        `${API_URL}/api/point/pix`,
+        {
+          amount: valorCobrado,
+          description: `Venda PDV - ${cart.length} item(ns)${saqueVendaNum > 0 ? ` + saque R$${saqueVendaNum.toFixed(2)}` : ""}`,
+          operator: auth?.userName || localStorage.getItem("userName") || null,
+        },
+        { headers }
+      );
+      setPixData({
+        id: response.data.id,
+        qrCode: response.data.qrCode,
+        qrCodeBase64: response.data.qrCodeBase64,
+        ticketUrl: response.data.ticketUrl,
+        total: valorCobrado,
+      });
+      setPixStatus("waiting");
+      iniciarPollingPix(response.data.id);
+    } catch (error) {
+      setPixStatus("failed");
+      setPixError(error?.response?.data?.error || "Erro ao gerar o Pix. Tente novamente.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const iniciarPollingPix = (pixId) => {
+    stopPixPolling();
+    pixPollRef.current = setInterval(async () => {
+      try {
+        const response = await axios.get(`${API_URL}/api/point/pix/${pixId}`);
+        const st = response.data.status;
+        if (st === "processed") {
+          stopPixPolling();
+          await finalizarVendaPix(pixId);
+        } else if (st === "canceled" || st === "failed" || st === "expired") {
+          stopPixPolling();
+          setPixStatus(st);
+          setPixError(
+            st === "expired" ? "O Pix expirou. Gere um novo e tente novamente."
+              : st === "canceled" ? "Pagamento cancelado."
+                : "Pagamento não concluído. Tente novamente."
+          );
+        } else {
+          setPixStatus("waiting");
+        }
+      } catch (error) {
+        // Erros transitórios de rede não interrompem o polling
+        console.error("Erro ao consultar status do Pix:", error?.response?.data || error.message);
+      }
+    }, 3000);
+  };
+
+  // Pix aprovado → cria a venda e vincula o saleId à order.
+  const finalizarVendaPix = async (pixId) => {
+    setPixStatus("processing");
+    const pending = pixPendingSaleRef.current || {};
+    try {
+      const venda = await criarVenda(pending.paymentMethodStr, pending.needsVale);
+      if (venda?.id) {
+        try {
+          await axios.patch(`${API_URL}/api/point/orders/${pixId}`, { saleId: venda.id });
+        } catch (linkErr) {
+          console.error("Erro ao vincular venda ao Pix (não crítico):", linkErr?.response?.data || linkErr.message);
+        }
+      }
+      setPixStatus("processed");
+      setShowPixModal(false);
+      setShowPaymentModal(false);
+      setMessage({ show: true, text: "Pix aprovado e venda registrada!", type: "success" });
+      clearCart();
+      fetchProducts();
+      setTimeout(() => setMessage(null), 4000);
+    } catch (error) {
+      // Pix aprovado, mas a venda falhou (ex: estoque). Alertar o operador.
+      setPixStatus("sale_error");
+      const errorMsg = error?.response?.data?.error || "Pix aprovado, mas houve erro ao registrar a venda. Verifique o estoque e registre manualmente.";
+      setPixError(errorMsg);
+    }
+  };
+
+  // Copia o código Pix copia e cola para a área de transferência.
+  const copiarPix = async () => {
+    if (!pixData?.qrCode) return;
+    try {
+      await navigator.clipboard.writeText(pixData.qrCode);
+      setPixCopiado(true);
+      setTimeout(() => setPixCopiado(false), 2500);
+    } catch {
+      /* clipboard indisponível */
+    }
+  };
+
+  const fecharModalPix = () => {
+    stopPixPolling();
+    setShowPixModal(false);
+    setPixData(null);
+    setPixStatus("");
+    setPixError("");
+    setPixCopiado(false);
+    pixPendingSaleRef.current = null;
   };
 
   // CLIENTES FIADO - fetch para fluxo Pendente
@@ -1505,16 +1650,27 @@ const PDV = () => {
       setTimeout(() => setMessage(null), 3000);
       return;
     }
+    if (!saqueFormaPagamento) {
+      setMessage({ show: true, text: "Selecione a forma de pagamento do saque.", type: "error" });
+      setTimeout(() => setMessage(null), 3000);
+      return;
+    }
     setIsLoadingSaque(true);
     try {
       await axios.post(
         `${API_URL}/api/pdv-saque`,
-        { valor: valorNum, observacao: saqueObservacao },
+        {
+          valor: valorNum,
+          observacao: saqueObservacao,
+          formaPagamento: saqueFormaPagamento,
+          formaPagamentoNome: getFormaNome(saqueFormaPagamento),
+        },
         { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
       );
       await fetchCaixaAtual();
       setSaqueValor("");
       setSaqueObservacao("");
+      setSaqueFormaPagamento("dinheiro");
       setMessage({ show: true, text: `Saque de ${formatCurrency(valorNum)} registrado!`, type: "success" });
       setTimeout(() => setMessage(null), 3000);
     } catch (e) {
@@ -1860,6 +2016,13 @@ const PDV = () => {
       : getFormaNome(paymentMethod);
 
     const needsVale = isSplitPayment ? splitPayments.some(s => s.forma === "vale") : paymentMethod === "vale";
+
+    // Pagamento Pix online (QR na tela) — apenas venda normal, forma configurada
+    const pixOnline = comandaEmPagamento ? null : pixOnlineFormaAtiva();
+    if (pixOnline) {
+      iniciarPagamentoPix(paymentMethodStr, needsVale);
+      return;
+    }
 
     // Pagamento presencial na maquininha (Mercado Pago Point) — apenas venda normal, forma habilitada
     const pointForma = comandaEmPagamento ? null : pointFormaAtiva();
@@ -2268,6 +2431,23 @@ const PDV = () => {
                     </div>
                   </div>
                 )}
+                <div className="pdv-saque-field">
+                  <label className="sombra-modal">Forma de pagamento do saque</label>
+                  <select
+                    value={saqueFormaPagamento}
+                    onChange={(e) => setSaqueFormaPagamento(e.target.value)}
+                  >
+                    {formasPagamento.filter(f => f.ativo && f.valor !== "pendente").map((f) => (
+                      <option key={f.id} value={f.valor}>{f.nome}</option>
+                    ))}
+                    {formasPagamento.filter(f => f.ativo && f.valor !== "pendente").length === 0 && (
+                      <option value="dinheiro">Dinheiro</option>
+                    )}
+                  </select>
+                  <span className="pdv-saque-forma-hint">
+                    Indique se o cliente pagou no ato (dinheiro) ou por meio integrado à maquininha (Pix, cartão…).
+                  </span>
+                </div>
                 <div className="pdv-saque-field">
                   <label className="sombra-modal">Observação (opcional)</label>
                   <input
@@ -3990,9 +4170,22 @@ const PDV = () => {
                                 <span>Maquininha</span>
                               </label>
                               {f.pointEnabled && (
-                                <span className="pdv-point-forma-hint" title="No Point, o cliente escolhe crédito ou débito no próprio terminal">
-                                  Crédito/Débito no terminal
-                                </span>
+                                <>
+                                  <select
+                                    className="pdv-point-forma-type"
+                                    value={f.pointType || ""}
+                                    onChange={(e) => handleTogglePointForma(f.id, "pointType", e.target.value || null)}
+                                    title="Modalidade que o terminal deve abrir automaticamente ao iniciar o pagamento"
+                                  >
+                                    <option value="">Cliente escolhe no terminal</option>
+                                    <option value="credit_card">Crédito</option>
+                                    <option value="debit_card">Débito</option>
+                                    <option value="pix_online">Pix (QR na tela)</option>
+                                  </select>
+                                  <span className="pdv-point-forma-hint">
+                                    Crédito e Débito abrem direto no terminal. "Pix (QR na tela)" gera um QR no computador para o cliente escanear (não usa a maquininha). Voucher continua sendo escolhido pelo cliente no terminal.
+                                  </span>
+                                </>
                               )}
                             </td>
                             <td className="pdv-config-actions">
@@ -4430,7 +4623,7 @@ const PDV = () => {
                 onClick={confirmPayment}
                 disabled={isLoading || !canConfirmPayment()}
               >
-                {isLoading ? <FaSpinner className="loading-iconn" /> : (comandaEmPagamento ? `Pagar Comanda #${comandaEmPagamento.id}` : (!isSplitPayment && pointFormaAtiva() ? "Enviar para maquininha" : "Confirmar Pagamento"))}
+                {isLoading ? <FaSpinner className="loading-iconn" /> : (comandaEmPagamento ? `Pagar Comanda #${comandaEmPagamento.id}` : (!isSplitPayment && !comandaEmPagamento && pixOnlineFormaAtiva() ? "Gerar Pix (QR na tela)" : (!isSplitPayment && pointFormaAtiva() ? "Enviar para maquininha" : "Confirmar Pagamento")))}
               </button>
               <button onClick={cancelPayment}>Cancelar</button>
             </div>
@@ -4484,6 +4677,79 @@ const PDV = () => {
               )}
               {pointStatus === "sale_error" && (
                 <button onClick={fecharModalPoint}>Entendi</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Pagamento Pix (QR na tela) */}
+      {showPixModal && (
+        <div className="modal">
+          <div className="modal-content payment-modal pdv-pix-modal">
+            <h3 style={{ textShadow: "none" }}><FaQrcode /> Pagamento via Pix</h3>
+
+            <div className="pdv-pix-body">
+              <div className="pdv-point-amount">{formatCurrency(pixData?.total ?? valorCobrado)}</div>
+
+              {pixStatus === "creating" && (
+                <div className="pdv-point-status pdv-point-status-waiting">
+                  <FaSpinner className="loading-iconn" /> <span>Gerando o QR Code...</span>
+                </div>
+              )}
+
+              {(pixStatus === "waiting" || pixStatus === "processing") && (
+                <>
+                  {pixStatus === "processing" ? (
+                    <div className="pdv-point-status pdv-point-status-waiting">
+                      <FaSpinner className="loading-iconn" /> <span>Pix aprovado! Registrando a venda...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="pdv-pix-instrucao">Escaneie o QR Code com o app do banco ou copie o código:</p>
+                      {pixData?.qrCodeBase64 && (
+                        <div className="pdv-pix-qr">
+                          <img src={`data:image/png;base64,${pixData.qrCodeBase64}`} alt="QR Code Pix" />
+                        </div>
+                      )}
+                      {pixData?.qrCode && (
+                        <div className="pdv-pix-copiacola">
+                          <textarea readOnly value={pixData.qrCode} onClick={(e) => e.target.select()} />
+                          <button type="button" className="pdv-pix-copiar-btn" onClick={copiarPix}>
+                            {pixCopiado ? <><FaCheck /> Copiado!</> : <><FaCopy /> Copiar código</>}
+                          </button>
+                        </div>
+                      )}
+                      <div className="pdv-point-status pdv-point-status-waiting">
+                        <FaSpinner className="loading-iconn" /> <span>Aguardando o pagamento...</span>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+
+              {pixStatus === "processed" && (
+                <div className="pdv-point-status pdv-point-status-ok">
+                  <FaCheck /> <span>Pix aprovado!</span>
+                </div>
+              )}
+
+              {(pixStatus === "canceled" || pixStatus === "failed" || pixStatus === "expired" || pixStatus === "sale_error") && (
+                <div className="pdv-point-status pdv-point-status-error">
+                  <FaExclamationTriangle /> <span>{pixError || "Pagamento não concluído."}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-buttons">
+              {(pixStatus === "creating" || pixStatus === "waiting") && (
+                <button onClick={fecharModalPix}>Cancelar</button>
+              )}
+              {(pixStatus === "canceled" || pixStatus === "failed" || pixStatus === "expired") && (
+                <button onClick={fecharModalPix}>Fechar</button>
+              )}
+              {pixStatus === "sale_error" && (
+                <button onClick={fecharModalPix}>Entendi</button>
               )}
             </div>
           </div>
