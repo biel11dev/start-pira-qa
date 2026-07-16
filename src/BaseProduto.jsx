@@ -254,14 +254,34 @@ const ProductList = () => {
   };
 
   // ============ CONVERSÃO DE UNIDADES ============
+  // Retorna quantas unidades globais uma unidade representa (não cadastradas = 1)
+  const eqVal = (unitName) => unitEquivalences[unitName] || 1;
+
+  // Resolve a unidade base (unitária = 1) de um item de estoque.
+  // Usa product.baseUnit se definido; senão deduz a menor unidade cadastrada do produto.
+  const getBaseUnit = (item) => {
+    if (!item) return "Unidade";
+    if (item.product?.baseUnit) return item.product.baseUnit;
+    const group = estoqueItems.filter(e => e.productId === item.productId);
+    const source = group.length ? group : [item];
+    let best = null, bestVal = Infinity;
+    source.forEach(e => {
+      const val = eqVal(e.unit);
+      if (val < bestVal) { bestVal = val; best = e.unit; }
+    });
+    return best || "Unidade";
+  };
+
   const openConvertModal = (item) => {
     setConvertItem(item);
     setConvertQuantity("1");
-    const isPorcao = item.unit !== "Unidade" && unitEquivalences[item.unit] === 1;
-    if (item.unit === "Unidade") {
+    const baseUnit = getBaseUnit(item);
+    const baseVal = eqVal(baseUnit);
+    const isPorcao = item.unit !== baseUnit && eqVal(item.unit) <= baseVal;
+    if (item.unit === baseUnit) {
       setConvertDirection("fromUnit");
-      // Selecionar a primeira unidade empacotada disponível
-      const packedUnits = Object.keys(unitEquivalences).filter(u => u !== "Unidade" && unitEquivalences[u] > 1);
+      // Selecionar a primeira unidade empacotada disponível (maior que a base)
+      const packedUnits = Object.keys(unitEquivalences).filter(u => u !== baseUnit && eqVal(u) > baseVal);
       setConvertTargetUnit(packedUnits.length > 0 ? packedUnits[0] : "");
     } else if (isPorcao) {
       // Unidade do tipo Porção/Dose: abre direto na aba de conversão por rendimento
@@ -282,23 +302,26 @@ const ProductList = () => {
     const qty = parseInt(convertQuantity) || 0;
     if (qty <= 0) return null;
 
+    const baseUnit = getBaseUnit(convertItem);
+    const baseVal = eqVal(baseUnit);
+
     if (convertDirection === "toUnit") {
-      // Empacotado → Unidade
-      const factor = unitEquivalences[convertItem.unit];
-      if (!factor || factor <= 1) return null;
+      // Empacotado → unidade base
+      const factor = eqVal(convertItem.unit) / baseVal;
+      if (!(factor > 1)) return null;
       return {
         from: `${qty}x ${convertItem.unit}`,
-        to: `${qty * factor}x Unidade`,
+        to: `${qty * factor}x ${baseUnit}`,
         factor: factor
       };
     } else {
-      // Unidade → Empacotado
+      // Unidade base → Empacotado
       if (!convertTargetUnit) return null;
-      const factor = unitEquivalences[convertTargetUnit];
-      if (!factor || factor <= 1) return null;
+      const factor = eqVal(convertTargetUnit) / baseVal;
+      if (!(factor > 1)) return null;
       const unitsNeeded = qty * factor;
       return {
-        from: `${unitsNeeded}x Unidade`,
+        from: `${unitsNeeded}x ${baseUnit}`,
         to: `${qty}x ${convertTargetUnit}`,
         factor: factor,
         unitsNeeded: unitsNeeded
@@ -351,7 +374,7 @@ const ProductList = () => {
           const { origin, destination } = res.data;
           setMessage({
             show: true,
-            text: `Convertido! ${origin.removed}x ${origin.unit} → ${destination.added}x Unidade`,
+            text: `Convertido! ${origin.removed}x ${origin.unit} → ${destination.added}x ${destination.unit}`,
             type: "success"
           });
           setShowConvertModal(false);
@@ -375,7 +398,7 @@ const ProductList = () => {
           const { origin, destination } = res.data;
           setMessage({
             show: true,
-            text: `Convertido! ${origin.removed}x Unidade → ${destination.added}x ${destination.unit}`,
+            text: `Convertido! ${origin.removed}x ${origin.unit} → ${destination.added}x ${destination.unit}`,
             type: "success"
           });
           setShowConvertModal(false);
@@ -476,7 +499,8 @@ const ProductList = () => {
         Produto: item.name,
         Quantidade: item.quantity,
         Unidade: item.unit,
-        "Em Unidades": item.quantity * (unitEquivalences[item.unit] || 1),
+        "Em Unidades": item.quantity * (eqVal(item.unit) / eqVal(getBaseUnit(item))),
+        "Unidade Base": getBaseUnit(item),
         Categoria: item.category?.name || "Sem categoria",
         Valor: formatCurrency(item.value),
         Custo: formatCurrency(item.valuecusto),
@@ -618,6 +642,10 @@ const ProductList = () => {
   };
 
   const conversionPreview = getConversionPreview();
+
+  // Unidade base do item em conversão (unitária = 1)
+  const convertBaseUnit = convertItem ? getBaseUnit(convertItem) : "Unidade";
+  const convertBaseVal = eqVal(convertBaseUnit);
 
   // Obter unidades disponíveis (das equivalências)
   const availableUnits = Object.keys(unitEquivalences);
@@ -804,8 +832,8 @@ const ProductList = () => {
                                     <span className="bp-info-value">{item.unit}</span>
                                   </div>
                                   <div className="bp-info-row">
-                                    <span className="bp-info-value bp-unit-total">
-                                      {item.quantity * (unitEquivalences[item.unit] || 1)}
+                                    <span className="bp-info-value bp-unit-total" title={`Em ${getBaseUnit(item)}`}>
+                                      {item.quantity * (eqVal(item.unit) / eqVal(getBaseUnit(item)))}
                                     </span>
                                   </div>
                                   <div className="bp-info-row">
@@ -824,12 +852,18 @@ const ProductList = () => {
                                   </div>
                                 </div>
                                 <div className="bp-actions">
-                                  {((item.unit !== "Unidade" && unitEquivalences[item.unit]) || 
-                                    (item.unit === "Unidade" && Object.keys(unitEquivalences).some(u => u !== "Unidade" && unitEquivalences[u] > 1))) && (
-                                    <button className="bp-btn-convert" onClick={() => openConvertModal(item)} title={item.unit === "Unidade" ? "Empacotar unidades" : "Converter para unidades"}>
-                                      <FaExchangeAlt />
-                                    </button>
-                                  )}
+                                  {(() => {
+                                    const baseU = getBaseUnit(item);
+                                    const baseV = eqVal(baseU);
+                                    const isBase = item.unit === baseU;
+                                    const canConvert = (!isBase && eqVal(item.unit) !== baseV) ||
+                                      (isBase && Object.keys(unitEquivalences).some(u => u !== baseU && eqVal(u) > baseV));
+                                    return canConvert && (
+                                      <button className="bp-btn-convert" onClick={() => openConvertModal(item)} title={isBase ? "Empacotar unidades" : `Converter para ${baseU}`}>
+                                        <FaExchangeAlt />
+                                      </button>
+                                    );
+                                  })()}
                                   <button
                                     className={`bp-btn-minimo ${minimoMap[item.id] ? "bp-btn-minimo--set" : ""}`}
                                     onClick={() => { setMinimoItem(item); setMinimoValor(minimoMap[item.id]?.quantidadeMinima ?? ""); setShowMinimoModal(true); }}
@@ -951,17 +985,17 @@ const ProductList = () => {
               <p>Estoque atual: <strong>{convertItem.quantity}x {convertItem.unit}</strong></p>
             </div>
 
-            {/* Direção da conversão - só mostra toggle se for Unidade (pode escolher destino) */}
-            {convertItem.unit === "Unidade" ? (
+            {/* Direção da conversão - só mostra toggle se estiver na unidade base (pode escolher destino) */}
+            {convertItem.unit === convertBaseUnit ? (
               <>
                 <div className="bp-entrada-field">
                   <label>Converter para qual unidade?</label>
                   <select value={convertTargetUnit} onChange={(e) => setConvertTargetUnit(e.target.value)}>
                     {Object.keys(unitEquivalences)
-                      .filter(u => u !== "Unidade" && unitEquivalences[u] > 1)
+                      .filter(u => u !== convertBaseUnit && eqVal(u) > convertBaseVal)
                       .map((u) => (
                         <option key={u} value={u}>
-                          {u} (1 {u} = {unitEquivalences[u]} un.)
+                          {u} (1 {u} = {eqVal(u) / convertBaseVal} {convertBaseUnit})
                         </option>
                       ))}
                   </select>
@@ -1002,7 +1036,7 @@ const ProductList = () => {
                     className={`bp-convert-tab ${convertDirection === "toUnit" ? "bp-convert-tab--active" : ""}`}
                     onClick={() => setConvertDirection("toUnit")}
                   >
-                    → Unidades
+                    → {convertBaseUnit}
                   </button>
                   <button
                     className={`bp-convert-tab ${convertDirection === "dose" ? "bp-convert-tab--active" : ""}`}
@@ -1014,13 +1048,13 @@ const ProductList = () => {
 
                 {convertDirection === "toUnit" ? (
                   <>
-                    {unitEquivalences[convertItem.unit] > 1 ? (
+                    {eqVal(convertItem.unit) > convertBaseVal ? (
                       <>
                         <div className="bp-convert-factor-info">
-                          Fator: 1 {convertItem.unit} = <strong>{unitEquivalences[convertItem.unit]}</strong> Unidades
+                          Fator: 1 {convertItem.unit} = <strong>{eqVal(convertItem.unit) / convertBaseVal}</strong> {convertBaseUnit}
                         </div>
                         <div className="bp-entrada-field">
-                          <label>Quantos {convertItem.unit}(s) converter para Unidades?</label>
+                          <label>Quantos {convertItem.unit}(s) converter para {convertBaseUnit}?</label>
                           <input
                             type="number"
                             min="1"

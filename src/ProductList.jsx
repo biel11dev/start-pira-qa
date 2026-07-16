@@ -10,6 +10,7 @@ const ProductList = () => {
   const [newProduct, setNewProduct] = useState("");
   const [quantity, setQuantity] = useState("");
   const [unit, setUnit] = useState("Unidade");
+  const [baseUnit, setBaseUnit] = useState("");
   const [value, setPreco] = useState("");
   const [valuecusto, setPrecoCusto] = useState("");
   const [message, setMessage] = useState(null);
@@ -156,13 +157,15 @@ const ProductList = () => {
           unit, 
           value, 
           valuecusto, 
-          categoryId 
+          categoryId,
+          baseUnit: baseUnit || null
         })
         .then((response) => {
           setProducts([...products, response.data]);
           setNewProduct("");
           setQuantity("");
           setUnit("Unidade");
+          setBaseUnit("");
           setPreco("");
           setPrecoCusto("");
           setSelectedCategory("");
@@ -408,12 +411,13 @@ const ProductList = () => {
       value: product.value,
       valuecusto: product.valuecusto,
       categoryId: product.categoryId || "",
+      baseUnit: product.baseUnit || "",
     });
   };
 
   const handleUpdateProduct = (id) => {
     setIsLoadingSave(true);
-    const { name, quantity, unit, value, valuecusto, categoryId } = editingProductData;
+    const { name, quantity, unit, value, valuecusto, categoryId, baseUnit } = editingProductData;
     const finalCategoryId = categoryId ? parseInt(categoryId) : null;
     
     axios
@@ -423,7 +427,8 @@ const ProductList = () => {
         unit, 
         value, 
         valuecusto, 
-        categoryId: finalCategoryId 
+        categoryId: finalCategoryId,
+        baseUnit: baseUnit || null
       })
       .then((response) => {
         const updatedProducts = products.map((product) => (product.id === id ? response.data : product));
@@ -764,6 +769,20 @@ const ProductList = () => {
             </li>
           </ul>
         </div>
+
+        {/* Seletor de unidade base (unitária = 1) */}
+        <select
+          className="base-unit-select"
+          value={baseUnit}
+          onChange={(e) => setBaseUnit(e.target.value)}
+          disabled={isLoading}
+          title="Unidade unitária (=1) do produto. Vazio = automático (menor unidade cadastrada)."
+        >
+          <option value="">Un. base: automática</option>
+          {Object.keys(unitEquivalences).map((u, index) => (
+            <option key={index} value={u}>Base: {u}</option>
+          ))}
+        </select>
         
         {/* Seletor de categorias */}
         <div className="custom-select custom-select-category">
@@ -929,6 +948,20 @@ const ProductList = () => {
                               onChange={(e) => setEditingProductData({ ...editingProductData, unit: e.target.value })}
                               className="product-edit-input"
                             >
+                              {Object.keys(unitEquivalences).map((u, index) => (
+                                <option key={index} value={u}>{u}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="product-edit-field">
+                            <label className="product-edit-label">Unidade base</label>
+                            <select 
+                              value={editingProductData.baseUnit || ""} 
+                              onChange={(e) => setEditingProductData({ ...editingProductData, baseUnit: e.target.value })}
+                              className="product-edit-input"
+                              title="Unidade unitária (=1) do produto. Vazio = automático (menor unidade)."
+                            >
+                              <option value="">Automático (menor unidade)</option>
                               {Object.keys(unitEquivalences).map((u, index) => (
                                 <option key={index} value={u}>{u}</option>
                               ))}
