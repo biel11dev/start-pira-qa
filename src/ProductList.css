@@ -1245,3 +1245,24 @@ html, body {
 .pl-lista-btn-concluir:hover { background: #16a34a; }
 .pl-lista-btn-reabrir { background: #6366f1; color: #fff; }
 .pl-lista-btn-reabrir:hover { background: #4f46e5; }
+
+/* Unidades visíveis no PDV (por produto) */
+.product-edit-field--pdv-units { display: flex; flex-direction: column; gap: 6px; }
+.pdv-units-hint { font-size: 12px; color: #888; font-style: italic; }
+.pdv-units-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.pdv-unit-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #f9fafb;
+  cursor: pointer;
+  font-size: 13px;
+  user-select: none;
+}
+.pdv-unit-checkbox input { cursor: pointer; margin: 0; }
+.pdv-unit-checkbox:has(input:checked) { border-color: #22c55e; background: #ecfdf5; }
+.pdv-unit-checkbox:has(input:not(:checked)) { border-color: #ef4444; background: #fef2f2; color: #991b1b; }
+

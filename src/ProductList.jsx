@@ -412,12 +412,14 @@ const ProductList = () => {
       valuecusto: product.valuecusto,
       categoryId: product.categoryId || "",
       baseUnit: product.baseUnit || "",
+      pdvHiddenUnits: product.pdvHiddenUnits || [],
+      _productUnits: [...new Set([product.unit, ...((product.estoqueItems || []).map(e => e.unit))].filter(Boolean))],
     });
   };
 
   const handleUpdateProduct = (id) => {
     setIsLoadingSave(true);
-    const { name, quantity, unit, value, valuecusto, categoryId, baseUnit } = editingProductData;
+    const { name, quantity, unit, value, valuecusto, categoryId, baseUnit, pdvHiddenUnits } = editingProductData;
     const finalCategoryId = categoryId ? parseInt(categoryId) : null;
     
     axios
@@ -428,7 +430,8 @@ const ProductList = () => {
         value, 
         valuecusto, 
         categoryId: finalCategoryId,
-        baseUnit: baseUnit || null
+        baseUnit: baseUnit || null,
+        pdvHiddenUnits: Array.isArray(pdvHiddenUnits) ? pdvHiddenUnits : []
       })
       .then((response) => {
         const updatedProducts = products.map((product) => (product.id === id ? response.data : product));
@@ -1006,6 +1009,34 @@ const ProductList = () => {
                               placeholder="Valor de custo"
                               className="product-edit-input"
                             />
+                          </div>
+                          <div className="product-edit-field product-edit-field--pdv-units">
+                            <label className="product-edit-label">Unidades no PDV</label>
+                            {(editingProductData._productUnits || []).length === 0 ? (
+                              <span className="pdv-units-hint">Dê entrada no estoque para configurar as unidades vendáveis.</span>
+                            ) : (
+                              <div className="pdv-units-list">
+                                {(editingProductData._productUnits || []).map((u) => {
+                                  const hidden = (editingProductData.pdvHiddenUnits || []).includes(u);
+                                  return (
+                                    <label key={u} className="pdv-unit-checkbox" title={hidden ? "Oculto no PDV" : "Aparece no PDV"}>
+                                      <input
+                                        type="checkbox"
+                                        checked={!hidden}
+                                        onChange={(e) => {
+                                          const current = editingProductData.pdvHiddenUnits || [];
+                                          const next = e.target.checked
+                                            ? current.filter((x) => x !== u)
+                                            : [...current, u];
+                                          setEditingProductData({ ...editingProductData, pdvHiddenUnits: next });
+                                        }}
+                                      />
+                                      <span>{u}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
                           <div className="product-edit-buttons">
                             <button 

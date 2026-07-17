@@ -425,19 +425,17 @@ const ProductList = () => {
       valuecusto: product.valuecusto,
       categoryId: product.categoria_Id || "",
       contabiliza: product.contabiliza !== false, // default true
-      mostrarPdv: product.mostrarPdv !== false, // default true
     });
   };
 
   const handleSaveProduct = () => {
     if (!editingProduct) return;
-    const { name, quantity, unit, value, valuecusto, categoryId, contabiliza, mostrarPdv } = editingProductData;
+    const { name, quantity, unit, value, valuecusto, categoryId, contabiliza } = editingProductData;
     const finalCategoryId = categoryId ? parseInt(categoryId) : null;
     axios
       .put(`${API_URL}/api/estoque_prod/${editingProduct}`, {
         name, quantity, unit, value, valuecusto, categoryId: finalCategoryId,
-        contabiliza: contabiliza !== false,
-        mostrarPdv: mostrarPdv !== false
+        contabiliza: contabiliza !== false
       })
       .then((res) => {
         setEstoqueItems(estoqueItems.map(item => item.id === editingProduct ? res.data : item));
@@ -791,19 +789,6 @@ const ProductList = () => {
                                     {editingProductData.contabiliza !== false ? 'Baixa estoque automaticamente' : 'Descartável — segue follow-up semanal'}
                                   </span>
                                 </div>
-                                <div className="bp-edit-field bp-edit-field--contabiliza">
-                                  <label className="bp-edit-label">MOSTRAR NO PDV?</label>
-                                  <button
-                                    className={`bp-contabiliza-toggle ${editingProductData.mostrarPdv !== false ? 'bp-contabiliza-toggle--sim' : 'bp-contabiliza-toggle--nao'}`}
-                                    onClick={() => setEditingProductData({ ...editingProductData, mostrarPdv: editingProductData.mostrarPdv === false ? true : false })}
-                                    type="button"
-                                  >
-                                    {editingProductData.mostrarPdv !== false ? 'S' : 'N'}
-                                  </button>
-                                  <span className="bp-contabiliza-hint">
-                                    {editingProductData.mostrarPdv !== false ? 'Aparece na tela de venda do PDV' : 'Oculto no PDV — não aparece para venda'}
-                                  </span>
-                                </div>
                                 <div className="bp-edit-buttons">
                                   <button className="bp-btn-save" onClick={handleSaveProduct}>Salvar</button>
                                   <button className="bp-btn-cancel" onClick={() => setEditingProduct(null)}>Cancelar</button>
@@ -818,8 +803,8 @@ const ProductList = () => {
                                       {item.contabiliza === false && (
                                         <span className="bp-badge-descartavel" title="Descartável — não baixa estoque automaticamente">N</span>
                                       )}
-                                      {item.mostrarPdv === false && (
-                                        <span className="bp-badge-oculto-pdv" title="Oculto no PDV — não aparece na tela de venda">PDV</span>
+                                      {(item.product?.pdvHiddenUnits || []).includes(item.unit) && (
+                                        <span className="bp-badge-oculto-pdv" title="Oculto no PDV — configure em Produtos">PDV</span>
                                       )}
                                     </span>
                                   </div>

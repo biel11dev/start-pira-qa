@@ -293,8 +293,11 @@ const PDV = () => {
       .get(`${API_URL}/api/estoque_prod`)
       .then((response) => {
         // Excluir itens que são apenas componentes de composição (vinculados via composicaoOpcoes)
-        // e itens marcados para não aparecer no PDV (mostrarPdv === false)
-        const vendiveis = response.data.filter(p => !(p._count?.composicaoOpcoes > 0) && p.mostrarPdv !== false);
+        // e unidades ocultas no PDV por configuração do produto (product.pdvHiddenUnits)
+        const vendiveis = response.data.filter(p =>
+          !(p._count?.composicaoOpcoes > 0) &&
+          !((p.product?.pdvHiddenUnits || []).includes(p.unit))
+        );
         setProducts(vendiveis);
         setFilteredProducts(vendiveis);
         
