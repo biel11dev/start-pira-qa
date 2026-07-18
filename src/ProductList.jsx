@@ -147,7 +147,7 @@ const ProductList = () => {
   };
 
   const handleAddProduct = () => {
-    if (newProduct.trim() !== "" && quantity.trim() !== "" && value.trim() !== "" && valuecusto.trim() !== "") {
+    if (newProduct.trim() !== ""  && value.trim() !== "" && valuecusto.trim() !== "") {
       setIsLoading(true);
       const categoryId = selectedCategory ? parseInt(selectedCategory) : null;
       axios
