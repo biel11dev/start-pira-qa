@@ -153,7 +153,6 @@ const ProductList = () => {
       axios
         .post("https://api-start-pira-qa.vercel.app/api/products", { 
           name: newProduct, 
-          quantity, 
           unit, 
           value, 
           valuecusto, 
