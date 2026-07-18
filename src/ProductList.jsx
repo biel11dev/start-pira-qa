@@ -162,7 +162,6 @@ const ProductList = () => {
         .then((response) => {
           setProducts([...products, response.data]);
           setNewProduct("");
-          setQuantity("");
           setUnit("Unidade");
           setBaseUnit("");
           setPreco("");
