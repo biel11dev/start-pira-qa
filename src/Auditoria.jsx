@@ -19,12 +19,14 @@ const Auditoria = () => {
   const [filtroModulo, setFiltroModulo] = useState("");
   const [filtroAcao, setFiltroAcao] = useState("");
   const [filtroUsuario, setFiltroUsuario] = useState("");
+  const [filtroDispositivo, setFiltroDispositivo] = useState("");
   const [filtroDataInicio, setFiltroDataInicio] = useState("");
   const [filtroDataFim, setFiltroDataFim] = useState("");
 
   // Listas para filtros
   const [modulosDisponiveis, setModulosDisponiveis] = useState([]);
   const [usuariosDisponiveis, setUsuariosDisponiveis] = useState([]);
+  const [dispositivosDisponiveis, setDispositivosDisponiveis] = useState([]);
 
   // Config de auditoria
   const [configs, setConfigs] = useState([]);
@@ -34,6 +36,7 @@ const Auditoria = () => {
   useEffect(() => {
     fetchModulos();
     fetchUsuarios();
+    fetchDispositivos();
     fetchConfigs();
   }, []);
 
@@ -56,6 +59,7 @@ const Auditoria = () => {
       if (filtroModulo) params.append("modulo", filtroModulo);
       if (filtroAcao) params.append("acao", filtroAcao);
       if (filtroUsuario) params.append("userName", filtroUsuario);
+      if (filtroDispositivo) params.append("dispositivo", filtroDispositivo);
       if (filtroDataInicio) params.append("dataInicio", filtroDataInicio);
       if (filtroDataFim) params.append("dataFim", filtroDataFim);
 
@@ -99,6 +103,15 @@ const Auditoria = () => {
     }
   };
 
+  const fetchDispositivos = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/auditoria/dispositivos`);
+      setDispositivosDisponiveis(response.data);
+    } catch (error) {
+      console.error("Erro ao buscar dispositivos:", error);
+    }
+  };
+
   const fetchConfigs = async () => {
     try {
       const response = await axios.get(`${API_URL}/api/auditoria-config`);
@@ -133,6 +146,7 @@ const Auditoria = () => {
     setFiltroModulo("");
     setFiltroAcao("");
     setFiltroUsuario("");
+    setFiltroDispositivo("");
     setFiltroDataInicio("");
     setFiltroDataFim("");
     setPage(1);
@@ -252,6 +266,18 @@ const Auditoria = () => {
         </div>
 
         <div className="filter-group">
+          <label>Dispositivo</label>
+          <select value={filtroDispositivo} onChange={(e) => setFiltroDispositivo(e.target.value)}>
+            <option value="">Todos</option>
+            {dispositivosDisponiveis.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="filter-group">
           <label>Data Início</label>
           <input
             type="date"
@@ -299,6 +325,7 @@ const Auditoria = () => {
                   <th>Módulo</th>
                   <th>Ação</th>
                   <th>Usuário</th>
+                  <th>Dispositivo</th>
                   <th>Rota</th>
                   <th>Descrição</th>
                   <th>Dados</th>
@@ -315,6 +342,9 @@ const Auditoria = () => {
                       <span className={`badge-acao badge-${reg.acao}`}>{reg.acao}</span>
                     </td>
                     <td>{reg.userName || "—"}</td>
+                    <td style={{ fontSize: 12 }} title={reg.userAgent || ""}>
+                      {reg.dispositivo || "—"}
+                    </td>
                     <td style={{ fontSize: 12, color: "#666" }}>{reg.rota}</td>
                     <td style={{ fontSize: 12 }}>{reg.descricao}</td>
                     <td className="payload-cell" title={reg.payload || ""}>

@@ -1002,6 +1002,9 @@ const PDV = () => {
       if (resp.data.isAdmin && resp.data.despesaPessoal) {
         successMsg += " Despesa criada no módulo Pessoal.";
       }
+      if (resp.data.isFuncionario && resp.data.gastoBar) {
+        successMsg += " Lançado em Gastos Bar — será descontado do total da semana no Ponto.";
+      }
       setMessage({ show: true, text: successMsg, type: "success" });
       setValeValorTotal("");
       setValeOrigens([{ nome: "", valor: "" }]);
@@ -3617,7 +3620,7 @@ const PDV = () => {
                   </button>
                 </div>
               </div>
-              <p className="pdv-gastos-bar-note">Somente visualização. Lançamentos são gerados automaticamente por vendas com pagamento em Vale no PDV.</p>
+              <p className="pdv-gastos-bar-note">Somente visualização. Lançamentos são gerados automaticamente por vendas com pagamento em Vale e por vales em dinheiro pegos por funcionários no PDV.</p>
 
               {isLoadingGastosBar ? (
                 <div className="pdv-caixa-fechado-state"><FaSpinner className="loading-iconn" size={30} /><p>Carregando...</p></div>
@@ -3645,6 +3648,7 @@ const PDV = () => {
                                 </span>
                                 <div className="pdv-gastos-bar-semana-totais">
                                   {semana.totalProdutos > 0 && <span className="pdv-gastos-bar-tag produto">🍺 {formatCurrency(semana.totalProdutos)}</span>}
+                                  {semana.totalVales > 0 && <span className="pdv-gastos-bar-tag vale">💵 {formatCurrency(semana.totalVales)}</span>}
                                   {semana.totalDescontos > 0 && <span className="pdv-gastos-bar-tag desconto">🏷️ {formatCurrency(semana.totalDescontos)}</span>}
                                   <span className="pdv-gastos-bar-tag total">Total: {formatCurrency(semana.total)}</span>
                                 </div>
@@ -3661,6 +3665,26 @@ const PDV = () => {
                                         <strong>{g.funcionario}</strong>
                                         <span className="pdv-gastos-bar-item-desc">{g.descricao || "Produto"}</span>
                                         {g.quantidade && <span className="pdv-gastos-bar-item-qtd">{g.quantidade}x {g.valorUnitario ? formatCurrency(g.valorUnitario) : ""}</span>}
+                                        <span className="pdv-gastos-bar-item-time">{new Date(g.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+                                      </div>
+                                      <div className="pdv-gastos-bar-item-actions">
+                                        <span className="pdv-gastos-bar-item-valor negativo">- {formatCurrency(g.valorTotal)}</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Vales em dinheiro */}
+                              {semana.vales && semana.vales.length > 0 && (
+                                <div className="pdv-gastos-bar-grupo">
+                                  <h5><FaHandHoldingUsd size={12} /> Vales em dinheiro (funcionários)</h5>
+                                  {semana.vales.map(g => (
+                                    <div key={g.id} className="pdv-gastos-bar-item vale">
+                                      <div className="pdv-gastos-bar-item-info">
+                                        <FaUserTie size={11} />
+                                        <strong>{g.funcionario}</strong>
+                                        <span className="pdv-gastos-bar-item-desc">{g.descricao || "Vale em dinheiro"}</span>
                                         <span className="pdv-gastos-bar-item-time">{new Date(g.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
                                       </div>
                                       <div className="pdv-gastos-bar-item-actions">
@@ -3717,6 +3741,10 @@ const PDV = () => {
                                 <span>🍺 Produtos</span>
                                 <strong>{formatCurrency(func.totalProdutos)}</strong>
                               </div>
+                              <div className="pdv-gastos-bar-func-stat vale">
+                                <span>💵 Vales</span>
+                                <strong>{formatCurrency(func.totalVales)}</strong>
+                              </div>
                               <div className="pdv-gastos-bar-func-stat desconto">
                                 <span>🏷️ Descontos</span>
                                 <strong>{formatCurrency(func.totalDescontos)}</strong>
@@ -3727,8 +3755,8 @@ const PDV = () => {
                                 <summary>{func.itens.length} registros</summary>
                                 <div className="pdv-gastos-bar-func-itens">
                                   {func.itens.map(g => (
-                                    <div key={g.id} className={`pdv-gastos-bar-func-item ${g.tipo === "PRODUTO" ? "produto" : "desconto"}`}>
-                                      <span className="pdv-gastos-bar-func-item-tipo">{g.tipo === "PRODUTO" ? "🍺" : "🏷️"}</span>
+                                    <div key={g.id} className={`pdv-gastos-bar-func-item ${g.tipo === "PRODUTO" ? "produto" : g.tipo === "VALE" ? "vale" : "desconto"}`}>
+                                      <span className="pdv-gastos-bar-func-item-tipo">{g.tipo === "PRODUTO" ? "🍺" : g.tipo === "VALE" ? "💵" : "🏷️"}</span>
                                       <span className="pdv-gastos-bar-func-item-desc">{g.descricao || g.tipo}</span>
                                       {g.quantidade && <span className="pdv-gastos-bar-func-item-qtd">{g.quantidade}x</span>}
                                       <span className="pdv-gastos-bar-func-item-valor negativo">- {formatCurrency(g.valorTotal)}</span>

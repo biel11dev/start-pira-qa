@@ -4706,6 +4706,7 @@ text-shadow: none;
   padding: 3px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 600;
 }
 .pdv-gastos-bar-tag.produto { background: rgba(245,158,11,.15); color: #fbbf24; }
+.pdv-gastos-bar-tag.vale { background: rgba(34,197,94,.15); color: #4ade80; }
 .pdv-gastos-bar-tag.desconto { background: rgba(139,92,246,.15); color: #a78bfa; }
 .pdv-gastos-bar-tag.total { background: rgba(239,68,68,.15); color: #ef4444; }
 
@@ -4720,6 +4721,7 @@ text-shadow: none;
   border-left: 3px solid transparent;
 }
 .pdv-gastos-bar-item.produto { border-left-color: #f59e0b; }
+.pdv-gastos-bar-item.vale { border-left-color: #22c55e; }
 .pdv-gastos-bar-item.desconto { border-left-color: #a78bfa; }
 .pdv-gastos-bar-item-info { display: flex; align-items: center; gap: 8px; flex: 1; flex-wrap: wrap; font-size: 0.84rem; color: #ccc; }
 .pdv-gastos-bar-item-info strong { color: #e2e8f0; }
@@ -4749,6 +4751,7 @@ text-shadow: none;
 }
 .pdv-gastos-bar-func-stat span { font-size: 0.78rem; color: #888; }
 .pdv-gastos-bar-func-stat.produto strong { color: #fbbf24; }
+.pdv-gastos-bar-func-stat.vale strong { color: #4ade80; }
 .pdv-gastos-bar-func-stat.desconto strong { color: #a78bfa; }
 .pdv-gastos-bar-func-details { margin-top: 6px; }
 .pdv-gastos-bar-func-details summary { cursor: pointer; font-size: 0.82rem; color: #6366f1; font-weight: 600; padding: 4px 0; }
