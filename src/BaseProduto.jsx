@@ -648,6 +648,13 @@ const ProductList = () => {
   // Obter unidades disponíveis (das equivalências)
   const availableUnits = Object.keys(unitEquivalences);
 
+  // Unidades atreladas ao produto selecionado na entrada (unidade base + unidades já cadastradas no estoque).
+  // A relação já existe na base de cadastro (Product.unit + Estoque.unit de cada item do produto).
+  const entradaProduct = catalogProducts.find((p) => p.id === selectedProductId);
+  const entradaAvailableUnits = entradaProduct
+    ? [...new Set([entradaProduct.unit, ...(entradaProduct.estoqueItems || []).map((e) => e.unit)].filter(Boolean))]
+    : availableUnits;
+
   // Separa itens zerados (falta no estoque) dos itens com saldo disponível
   const zeroedItems = filteredItems
     .filter((item) => (item.quantity ?? 0) <= 0)
@@ -934,7 +941,7 @@ const ProductList = () => {
               <div className="bp-entrada-field">
                 <label>Unidade:</label>
                 <select value={entradaUnit} onChange={(e) => setEntradaUnit(e.target.value)}>
-                  {availableUnits.map((u) => (
+                  {entradaAvailableUnits.map((u) => (
                     <option key={u} value={u}>
                       {u} {unitEquivalences[u] > 1 ? `(${unitEquivalences[u]} un.)` : ""}
                     </option>
