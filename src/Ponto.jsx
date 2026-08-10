@@ -48,6 +48,11 @@ const Ponto = () => {
   // Estado para armazenar meta da semana selecionada
   const [currentWeekMeta, setCurrentWeekMeta] = useState(null);
   
+  // Gastos Bar (produtos pegos via Vale + vales) por funcionário na semana selecionada
+  const [weeklyGastos, setWeeklyGastos] = useState({}); // { [employeeId]: { total, itens } }
+  const [showGastosModal, setShowGastosModal] = useState(false);
+  const [gastosModalData, setGastosModalData] = useState(null); // { nome, itens, total, periodo }
+    
   // Estados para modal de meta semanal
   const [showWeeklyMetaModal, setShowWeeklyMetaModal] = useState(false);
   const [weeklyMetaEmployee, setWeeklyMetaEmployee] = useState(null);
@@ -977,6 +982,47 @@ useEffect(() => {
   calculateAllValues();
 }, [weeklyData, monthlyData]);
 
+// Buscar Gastos Bar da semana (produtos via Vale + vales em dinheiro) para descontar no total semanal
+useEffect(() => {
+  const fetchWeeklyGastos = async () => {
+    const result = {};
+    for (const employee of weeklyData) {
+      if (!employee?.name || !employee.points || employee.points.length === 0) continue;
+      const bounds = getWeekBoundsFromPoints(employee.points);
+      if (!bounds) continue;
+      try {
+        const resp = await axios.get(
+          `https://api-start-pira-qa.vercel.app/api/pdv-gastos-bar/funcionario/${encodeURIComponent(employee.name.trim())}`,
+          { params: { startDate: bounds.start.toISOString(), endDate: bounds.end.toISOString() } }
+        );
+        result[employee.id] = {
+          total: parseFloat(resp.data?.total) || 0,
+          itens: Array.isArray(resp.data?.itens) ? resp.data.itens : [],
+          periodo: bounds,
+        };
+      } catch (error) {
+        console.error("Erro ao buscar gastos bar da semana:", error);
+        result[employee.id] = { total: 0, itens: [], periodo: bounds };
+      }
+    }
+    setWeeklyGastos(result);
+  };
+  if (weeklyData.length > 0) fetchWeeklyGastos();
+  else setWeeklyGastos({});
+}, [weeklyData]);
+
+const openGastosDetalhados = (employee) => {
+  const info = weeklyGastos[employee.id];
+  const periodo = info?.periodo || getWeekBoundsFromPoints(employee.points);
+  setGastosModalData({
+    nome: employee.name,
+    itens: info?.itens || [],
+    total: info?.total || 0,
+    periodo,
+  });
+  setShowGastosModal(true);
+};
+
 // Atualiza os campos quando o funcionário selecionado mudar
 useEffect(() => {
   const selectedEmployee = employees.find(emp => emp.id === selectedEmployeeId);
@@ -1756,6 +1802,22 @@ const handleSaveEdit = () => {
     return new Date(Number(year), Number(month) - 1, Number(day));
   };
 
+  // Deriva o intervalo (terça 00:00 -> domingo 23:59) a partir dos pontos de uma semana
+  const getWeekBoundsFromPoints = (points) => {
+    if (!points || points.length === 0) return null;
+    const first = parseISODate(points[0].date);
+    const dow = first.getDay(); // 0=dom, 1=seg, 2=ter...
+    const start = new Date(first);
+    if (dow === 0) start.setDate(start.getDate() - 5);
+    else if (dow === 1) start.setDate(start.getDate() - 6);
+    else start.setDate(start.getDate() - (dow - 2));
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 5);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
+  };
+
   const parseHourStringToMinutes = (str) => {
     if (!str) return 0;
     const match = str.match(/([+-]?)(\d+)h\s*(\d+)m/);
@@ -2521,7 +2583,8 @@ const handleSaveEdit = () => {
                   <td className="resumo-valor">
                     {(() => {
                       const weeklyCalc = weeklyCalculations[employee.id] || { valorBase: 0, bonificacao: 0, temBonificacao: false, descontoVale: 0 };
-                      const descontoVale = weeklyCalc.descontoVale || 0;
+                      // Desconto vem da busca dedicada (fresca e no intervalo exato da semana exibida)
+                      const descontoVale = weeklyGastos[employee.id]?.total ?? (weeklyCalc.descontoVale || 0);
                       const valorTotal = weeklyCalc.valorBase + weeklyCalc.bonificacao - descontoVale;
                       return (
                         <>
@@ -2541,6 +2604,25 @@ const handleSaveEdit = () => {
                               = R$ {valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </div>
                           )}
+                          <button
+                            type="button"
+                            className="btn-ver-gastos"
+                            onClick={() => openGastosDetalhados(employee)}
+                            title="Ver gastos (produtos via Vale e vales) descontados nesta semana"
+                            style={{
+                              marginTop: 8,
+                              padding: "4px 10px",
+                              background: "#37474f",
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: 4,
+                              cursor: "pointer",
+                              fontSize: 12,
+                              fontWeight: "bold",
+                            }}
+                          >
+                            🧾 Ver gastos detalhados
+                          </button>
                         </>
                       );
                     })()}
@@ -2698,6 +2780,126 @@ const handleSaveEdit = () => {
         </tbody>
       </table>
       
+      {/* Modal de gastos detalhados (produtos via Vale + vales em dinheiro) */}
+      {showGastosModal && gastosModalData && (
+        <div
+          className="modal-gastos"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={() => setShowGastosModal(false)}
+        >
+          <div
+            style={{
+              background: "#1e1e2f",
+              color: "#fff",
+              borderRadius: 10,
+              padding: 24,
+              width: "min(560px, 92vw)",
+              maxHeight: "85vh",
+              overflowY: "auto",
+              boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ marginTop: 0, marginBottom: 4 }}>🧾 Gastos da semana — {gastosModalData.nome}</h3>
+            {gastosModalData.periodo && (
+              <div style={{ fontSize: 13, opacity: 0.75, marginBottom: 16 }}>
+                Período: {gastosModalData.periodo.start.toLocaleDateString("pt-BR")} a {gastosModalData.periodo.end.toLocaleDateString("pt-BR")}
+              </div>
+            )}
+
+            {gastosModalData.itens.length === 0 ? (
+              <p style={{ opacity: 0.8 }}>Nenhum gasto registrado nesta semana.</p>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #444", textAlign: "left" }}>
+                    <th style={{ padding: "6px 4px" }}>Tipo</th>
+                    <th style={{ padding: "6px 4px" }}>Descrição</th>
+                    <th style={{ padding: "6px 4px", textAlign: "center" }}>Qtd</th>
+                    <th style={{ padding: "6px 4px", textAlign: "right" }}>Valor</th>
+                    <th style={{ padding: "6px 4px", textAlign: "right" }}>Data</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {gastosModalData.itens.map((it) => (
+                    <tr key={it.id} style={{ borderBottom: "1px solid #333" }}>
+                      <td style={{ padding: "6px 4px" }}>
+                        <span
+                          style={{
+                            padding: "2px 6px",
+                            borderRadius: 4,
+                            fontSize: 11,
+                            fontWeight: "bold",
+                            background: it.tipo === "VALE" ? "#6a1b9a" : "#00695c",
+                          }}
+                        >
+                          {it.tipo === "VALE" ? "💵 Vale" : "🛒 Produto"}
+                        </span>
+                      </td>
+                      <td style={{ padding: "6px 4px" }}>{it.descricao || "—"}</td>
+                      <td style={{ padding: "6px 4px", textAlign: "center" }}>{it.quantidade || 1}</td>
+                      <td style={{ padding: "6px 4px", textAlign: "right" }}>
+                        R$ {(it.valorTotal || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td style={{ padding: "6px 4px", textAlign: "right", whiteSpace: "nowrap" }}>
+                        {new Date(it.createdAt).toLocaleDateString("pt-BR")}{" "}
+                        {new Date(it.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            <div
+              style={{
+                marginTop: 16,
+                paddingTop: 12,
+                borderTop: "2px solid #444",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                fontWeight: "bold",
+                fontSize: 16,
+              }}
+            >
+              <span>Total descontado no fim da semana:</span>
+              <span style={{ color: "#ff8a80" }}>
+                - R$ {(gastosModalData.total || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+
+            <div style={{ textAlign: "right", marginTop: 20 }}>
+              <button
+                onClick={() => setShowGastosModal(false)}
+                style={{
+                  padding: "8px 18px",
+                  background: "#1976d2",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 4,
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                }}
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modais de falta (mantidos inalterados) */}
       {showFaltaModal && (
         <div
