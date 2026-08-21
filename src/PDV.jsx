@@ -2534,11 +2534,50 @@ const PDV = () => {
 
           <div className="cart-footer">
             <div className="total-section">
-              <div className="total-label">Subtotal:</div>
+              <div className="total-label">Total Carrinho:</div>
               <div className="total-value">{formatCurrency(total)}</div>
             </div>
 
-            {cart.length > 0 && (
+           
+
+            {!comandaEmPagamento && (
+              <div className="pdv-saque-venda-section">
+                <label className="pdv-saque-venda-label">
+                  💵 Saque (dinheiro para o cliente)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Ex: 40,00 (opcional)"
+                  value={saqueVendaValor}
+                  onChange={(e) => setSaqueVendaValor(e.target.value)}
+                  className="pdv-saque-venda-input"
+                />
+                {saqueVendaNum > 0 && (
+                  <div className="pdv-saque-venda-preview">
+                    <div className="pdv-saque-venda-row">
+                      <span>Total Carrinho:</span>
+                      <strong>{formatCurrency(finalTotal)}</strong>
+                    </div>
+                    <div className="pdv-saque-venda-row">
+                      <span>Cliente recebe:</span>
+                      <strong>{formatCurrency(saqueVendaNum)}</strong>
+                    </div>
+                    <div className="pdv-saque-venda-row">
+                      <span>Taxa ({taxaSaque}%):</span>
+                      <span>+ {formatCurrency(saqueVendaFee)}</span>
+                    </div>
+                    <div className="pdv-saque-venda-row pdv-saque-venda-row-total">
+                      <span>Total Saque:</span>
+                      <strong>{formatCurrency(saqueVendaCobrar)}</strong>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+            )}
+             {cart.length > 0 && (
               <div className="pdv-discount-section">
                 {!cupomAplicado ? (
                   <>
@@ -2586,46 +2625,17 @@ const PDV = () => {
                 )}
               </div>
             )}
-
-            {!comandaEmPagamento && (
-              <div className="pdv-saque-venda-section">
-                <label className="pdv-saque-venda-label">
-                  💵 Saque (dinheiro para o cliente)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="Ex: 40,00 (opcional)"
-                  value={saqueVendaValor}
-                  onChange={(e) => setSaqueVendaValor(e.target.value)}
-                  className="pdv-saque-venda-input"
-                />
-                {saqueVendaNum > 0 && (
-                  <div className="pdv-saque-venda-preview">
-                    <div className="pdv-saque-venda-row">
-                      <span>Cliente recebe:</span>
-                      <strong>{formatCurrency(saqueVendaNum)}</strong>
-                    </div>
-                    <div className="pdv-saque-venda-row">
-                      <span>Taxa ({taxaSaque}%):</span>
-                      <span>+ {formatCurrency(saqueVendaFee)}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
+{/* 
             {desconto > 0 && (
               <div className="total-section pdv-final-total">
                 <div className="total-label">Total Final:</div>
                 <div className="total-value">{formatCurrency(finalTotal)}</div>
               </div>
-            )}
+            )} */}
 
             {saqueVendaNum > 0 && (
               <div className="total-section pdv-final-total pdv-saque-venda-total">
-                <div className="total-label">Total a cobrar:</div>
+                <div className="total-label">Total à cobrar:</div>
                 <div className="total-value">{formatCurrency(valorCobrado)}</div>
               </div>
             )}
@@ -3068,7 +3078,7 @@ const PDV = () => {
                         onChange={(e) => handleOrigemChangePremio(index, "nome", e.target.value)}
                       >
                         <option value="">Selecione...</option>
-                        {origemSaldos.filter(o => o.nome !== "CAIXA").map(o => (
+                        {origemSaldos.map(o => (
                           <option key={`tracked-${o.nome}`} value={o.nome}>{o.nome} ({formatCurrency(o.saldo)})</option>
                         ))}
                       </select>
@@ -4473,7 +4483,7 @@ const PDV = () => {
 
             <div className="payment-summary">
               <div className="summary-row">
-                <span className="sombra-modal">Subtotal:</span>
+                <span className="sombra-modal">Total Carrinho:</span>
                 <span className="sombra-modal" >{formatCurrency(total)}</span>
               </div>
               {desconto > 0 && (
@@ -4496,8 +4506,12 @@ const PDV = () => {
                     <span className="sombra-modal">Taxa do saque ({taxaSaque}%):</span>
                     <span className="sombra-modal">+ {formatCurrency(saqueVendaFee)}</span>
                   </div>
+                  <div className="summary-row">
+                    <span className="sombra-modal">Total Saque:</span>
+                    <span className="sombra-modal">{formatCurrency(saqueVendaCobrar)}</span>
+                  </div>
                   <div className="summary-row pdv-summary-final">
-                    <span className="sombra-modal">Total a cobrar:</span>
+                    <span className="sombra-modal">Total à cobrar:</span>
                     <span className="sombra-modal">{formatCurrency(valorCobrado)}</span>
                   </div>
                 </>
@@ -5142,9 +5156,16 @@ const PDV = () => {
             <div className="pdv-comp-modal-body">
               {(() => {
                 const composicoes = compModalProduct.composicoes || [];
-                // Encontra o índice do primeiro grupo ainda não preenchido
-                const firstEmptyIdx = composicoes.findIndex(comp => !(compSelections[comp.id] || []).length);
-                // Mostra até o primeiro não preenchido (inclusive); se todos preenchidos, mostra tudo
+                // Considera um grupo "completo" apenas quando os requisitos do
+                // campo são atendidos. Para grupo múltiplo, só é completo ao
+                // atingir o máximo de opções (maxOpcoes); para simples, 1 opção.
+                const compCompleta = (comp) => {
+                  const qtd = (compSelections[comp.id] || []).length;
+                  return comp.multiplo ? qtd >= (comp.maxOpcoes || 1) : qtd >= 1;
+                };
+                // Encontra o índice do primeiro grupo ainda não completo
+                const firstEmptyIdx = composicoes.findIndex(comp => !compCompleta(comp));
+                // Mostra até o primeiro não completo (inclusive); se todos completos, mostra tudo
                 const visibleComps = firstEmptyIdx === -1 ? composicoes : composicoes.slice(0, firstEmptyIdx + 1);
                 return visibleComps.map((comp, idx) => {
                   const isActive = idx === (firstEmptyIdx === -1 ? composicoes.length - 1 : firstEmptyIdx);

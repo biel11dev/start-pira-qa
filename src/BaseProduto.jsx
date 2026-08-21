@@ -15,6 +15,7 @@ const ProductList = () => {
   const [catalogProducts, setCatalogProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [unitEquivalences, setUnitEquivalences] = useState({});
+  const [fractionalUnits, setFractionalUnits] = useState([]); // unidades fracionais (ex.: Dose)
   const [expandedGroups, setExpandedGroups] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -25,6 +26,8 @@ const ProductList = () => {
   const [selectedProductId, setSelectedProductId] = useState("");
   const [entradaQuantity, setEntradaQuantity] = useState("");
   const [entradaUnit, setEntradaUnit] = useState("Unidade");
+  const [entradaValue, setEntradaValue] = useState("");
+  const [entradaCusto, setEntradaCusto] = useState("");
   const [productSearch, setProductSearch] = useState("");
   const [filteredCatalog, setFilteredCatalog] = useState([]);
   const [showCatalogDropdown, setShowCatalogDropdown] = useState(false);
@@ -133,6 +136,11 @@ const ProductList = () => {
         }, {});
         obj["Unidade"] = 1;
         setUnitEquivalences(obj);
+        setFractionalUnits(
+          res.data
+            .filter((eq) => eq.isFractional && eq.fractionalValue > 0)
+            .map((eq) => eq.unitName)
+        );
       })
       .catch((err) => {
         console.error("Erro ao buscar equivalências:", err);
@@ -215,8 +223,21 @@ const ProductList = () => {
     setSelectedProductId("");
     setEntradaQuantity("");
     setEntradaUnit("Unidade");
+    setEntradaValue("");
+    setEntradaCusto("");
     setProductSearch("");
   };
+
+  // Pré-preenche valor de venda/custo da entrada conforme a unidade selecionada
+  // (usa unitPrices do produto quando existir; senão o valor padrão do produto). Editável.
+  useEffect(() => {
+    if (!selectedProductId) return;
+    const prod = catalogProducts.find((p) => p.id === selectedProductId);
+    if (!prod) return;
+    const cfg = prod.unitPrices && typeof prod.unitPrices === "object" ? prod.unitPrices[entradaUnit] : null;
+    setEntradaValue(cfg && cfg.value != null ? String(cfg.value) : (prod.value != null ? String(prod.value) : ""));
+    setEntradaCusto(cfg && cfg.cost != null ? String(cfg.cost) : (prod.valuecusto != null ? String(prod.valuecusto) : ""));
+  }, [selectedProductId, entradaUnit, catalogProducts]);
 
   const handleSelectCatalogProduct = (product) => {
     setSelectedProductId(product.id);
@@ -236,7 +257,9 @@ const ProductList = () => {
     axios.post(`${API_URL}/api/estoque_prod/entrada`, {
       productId: selectedProductId,
       quantity: parseInt(entradaQuantity),
-      unit: entradaUnit
+      unit: entradaUnit,
+      value: entradaValue === "" ? undefined : parseFloat(entradaValue),
+      valuecusto: entradaCusto === "" ? undefined : parseFloat(entradaCusto)
     })
       .then(() => {
         setMessage({ show: true, text: "Entrada registrada com sucesso!", type: "success" });
@@ -566,18 +589,39 @@ const ProductList = () => {
     }
   };
 
-  // Adiciona opção selecionando um item de estoque existente
+  // Adiciona opção selecionando um item de estoque existente.
+  // Se o produto for adicionado na unidade base mas possuir um registro de
+  // estoque em unidade fracional (ex.: Dose), a opção é vinculada à unidade
+  // fracional; o desmembramento do estoque ocorre sob demanda na venda.
+  const resolveFractionalTarget = (item) => {
+    const isFractional = (u) => fractionalUnits.includes(u);
+    if (isFractional(item.unit)) return item; // já é fracional
+    const sibling = estoqueList.find(
+      (e) => e.productId === item.productId && e.id !== item.id && isFractional(e.unit)
+    );
+    return sibling || item;
+  };
+
   const handleAddOpcaoFromEstoque = async (composicaoId, estoqueItem) => {
     setSavingOpcao(true);
     try {
+      const target = resolveFractionalTarget(estoqueItem);
       await axios.post(`${API_URL}/api/composicoes/${composicaoId}/opcoes`, {
-        nome: estoqueItem.name,
+        nome: target.name,
         valorExtra: 0,
-        estoqueId: estoqueItem.id
+        estoqueId: target.id
       });
       const estoqRes = await axios.get(`${API_URL}/api/estoque_prod`);
       setEstoqueList(estoqRes.data.sort((a, b) => a.name.localeCompare(b.name)));
       await refreshComposicoes();
+      if (target.id !== estoqueItem.id) {
+        setMessage({
+          show: true,
+          text: `"${estoqueItem.name}" vinculado na unidade fracional "${target.unit}". O desmembramento do estoque será feito automaticamente na venda.`,
+          type: 'success'
+        });
+        setTimeout(() => setMessage(null), 5000);
+      }
     } catch (e) {
       setMessage({ show: true, text: 'Erro ao adicionar opção!', type: 'error' });
       setTimeout(() => setMessage(null), 3000);
@@ -947,6 +991,31 @@ const ProductList = () => {
                     </option>
                   ))}
                 </select>
+              </div>
+            </div>
+
+            <div className="bp-entrada-row">
+              <div className="bp-entrada-field">
+                <label>Valor de venda (R$):</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={entradaValue}
+                  onChange={(e) => setEntradaValue(e.target.value)}
+                  placeholder="Valor de venda"
+                />
+              </div>
+              <div className="bp-entrada-field">
+                <label>Valor de custo (R$):</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={entradaCusto}
+                  onChange={(e) => setEntradaCusto(e.target.value)}
+                  placeholder="Valor de custo"
+                />
               </div>
             </div>
 

@@ -5409,6 +5409,7 @@ text-shadow: none;
 .pdv-saque-venda-input { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; text-shadow:none; }
 .pdv-saque-venda-preview { margin-top: 8px; display: flex; flex-direction: column; gap: 3px; text-shadow:none; }
 .pdv-saque-venda-row { display: flex; justify-content: space-between; font-size: 0.82rem; color: #334155; text-shadow:none; }
+.pdv-saque-venda-row-total { margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(51,65,85,0.2); font-size: 0.9rem; font-weight: 700; color: #0f172a; }
 .pdv-saque-venda-total .total-value { color: #10b981; }
 
 .pdv-saque-venda-row span { text-shadow:none; }

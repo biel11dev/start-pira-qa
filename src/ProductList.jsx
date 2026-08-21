@@ -21,6 +21,7 @@ const ProductList = () => {
   const [isUnitModalOpen, setIsUnitModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingSave, setIsLoadingSave] = useState(false);
+  const [isUnitPricesModalOpen, setIsUnitPricesModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredProducts, setFilteredProducts] = useState([]);
   
@@ -411,13 +412,14 @@ const ProductList = () => {
       categoryId: product.categoryId || "",
       baseUnit: product.baseUnit || "",
       pdvHiddenUnits: product.pdvHiddenUnits || [],
+      unitPrices: product.unitPrices && typeof product.unitPrices === "object" ? product.unitPrices : {},
       _productUnits: [...new Set([product.unit, ...((product.estoqueItems || []).map(e => e.unit))].filter(Boolean))],
     });
   };
 
   const handleUpdateProduct = (id) => {
     setIsLoadingSave(true);
-    const { name, quantity, unit, value, valuecusto, categoryId, baseUnit, pdvHiddenUnits } = editingProductData;
+    const { name, quantity, unit, value, valuecusto, categoryId, baseUnit, pdvHiddenUnits, unitPrices } = editingProductData;
     const finalCategoryId = categoryId ? parseInt(categoryId) : null;
     
     axios
@@ -429,7 +431,8 @@ const ProductList = () => {
         valuecusto, 
         categoryId: finalCategoryId,
         baseUnit: baseUnit || null,
-        pdvHiddenUnits: Array.isArray(pdvHiddenUnits) ? pdvHiddenUnits : []
+        pdvHiddenUnits: Array.isArray(pdvHiddenUnits) ? pdvHiddenUnits : [],
+        unitPrices: unitPrices && typeof unitPrices === "object" ? unitPrices : {}
       })
       .then((response) => {
         const updatedProducts = products.map((product) => (product.id === id ? response.data : product));
@@ -551,6 +554,62 @@ const ProductList = () => {
                 setIsUnitModalOpen(false);
                 setNewUnit("");
               }}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isUnitPricesModalOpen && (
+        <div className="modal">
+          <div className="modal-content">
+            <h3 className="texto-add-unidade">Valores por unidade — {editingProductData.name}</h3>
+            <p style={{ color: '#333', fontSize: '13px', marginBottom: '10px', textShadow: 'none' }}>
+              Defina o valor de venda e de custo de cada unidade comercializável. Serão sugeridos automaticamente na entrada de estoque.
+            </p>
+            <div className="unit-prices-list">
+              <div className="unit-prices-row unit-prices-row--head">
+                <span>Unidade</span>
+                <span>Venda (R$)</span>
+                <span>Custo (R$)</span>
+              </div>
+              {(editingProductData._productUnits || []).map((u) => {
+                const cfg = (editingProductData.unitPrices || {})[u] || {};
+                const setUP = (field, val) => {
+                  setEditingProductData((prev) => {
+                    const up = { ...(prev.unitPrices || {}) };
+                    const entry = { ...(up[u] || {}) };
+                    if (val === "") delete entry[field];
+                    else entry[field] = parseFloat(val);
+                    if (Object.keys(entry).length === 0) delete up[u];
+                    else up[u] = entry;
+                    return { ...prev, unitPrices: up };
+                  });
+                };
+                return (
+                  <div className="unit-prices-row" key={u}>
+                    <span className="unit-prices-name">{u}</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder={String(editingProductData.value ?? "")}
+                      value={cfg.value ?? ""}
+                      onChange={(e) => setUP("value", e.target.value)}
+                    />
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder={String(editingProductData.valuecusto ?? "")}
+                      value={cfg.cost ?? ""}
+                      onChange={(e) => setUP("cost", e.target.value)}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            <div className="modal-buttons">
+              <button onClick={() => setIsUnitPricesModalOpen(false)}>Concluir</button>
             </div>
           </div>
         </div>
@@ -1034,6 +1093,20 @@ const ProductList = () => {
                                   );
                                 })}
                               </div>
+                            )}
+                          </div>
+                          <div className="product-edit-field product-edit-field--pdv-units">
+                            <label className="product-edit-label">Valores por unidade</label>
+                            {(editingProductData._productUnits || []).length === 0 ? (
+                              <span className="pdv-units-hint">Dê entrada no estoque para definir valores por unidade.</span>
+                            ) : (
+                              <button
+                                type="button"
+                                className="unit-prices-open-btn"
+                                onClick={() => setIsUnitPricesModalOpen(true)}
+                              >
+                                💲 Valores de venda/custo por unidade
+                              </button>
                             )}
                           </div>
                           <div className="product-edit-buttons">

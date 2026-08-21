@@ -1266,3 +1266,32 @@ html, body {
 .pdv-unit-checkbox:has(input:checked) { border-color: #22c55e; background: #ecfdf5; }
 .pdv-unit-checkbox:has(input:not(:checked)) { border-color: #ef4444; background: #fef2f2; color: #991b1b; }
 
+.unit-prices-open-btn {
+  align-self: flex-start;
+  padding: 6px 12px;
+  border: 1px solid #2563eb;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+.unit-prices-open-btn:hover { background: #dbeafe; }
+.unit-prices-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.unit-prices-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+}
+.unit-prices-row--head { font-weight: 700; color: #334155; font-size: 12px; text-shadow: none; }
+.unit-prices-row .unit-prices-name { font-size: 13px; color: #0f172a; text-shadow: none; word-break: break-word; }
+.unit-prices-row input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
