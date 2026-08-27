@@ -520,8 +520,6 @@ const ProductList = () => {
         Produto: item.name,
         Quantidade: item.quantity,
         Unidade: item.unit,
-        "Em Unidades": item.quantity * (eqVal(item.unit) / eqVal(getBaseUnit(item))),
-        "Unidade Base": getBaseUnit(item),
         Categoria: item.category?.name || "Sem categoria",
         Valor: formatCurrency(item.value),
         Custo: formatCurrency(item.valuecusto),
@@ -689,15 +687,31 @@ const ProductList = () => {
   const convertBaseUnit = convertItem ? getBaseUnit(convertItem) : "Unidade";
   const convertBaseVal = eqVal(convertBaseUnit);
 
-  // Obter unidades disponíveis (das equivalências)
-  const availableUnits = Object.keys(unitEquivalences);
-
-  // Unidades atreladas ao produto selecionado na entrada (unidade base + unidades já cadastradas no estoque).
-  // A relação já existe na base de cadastro (Product.unit + Estoque.unit de cada item do produto).
+  // Unidades atreladas ao produto selecionado na entrada (espelha o mobile):
+  // unidade base do produto + unidades já cadastradas no estoque desse produto + unidades fracionais.
+  // Só mostra as unidades que têm relação com o produto (nunca todas as unidades do sistema).
   const entradaProduct = catalogProducts.find((p) => p.id === selectedProductId);
-  const entradaAvailableUnits = entradaProduct
-    ? [...new Set([entradaProduct.unit, ...(entradaProduct.estoqueItems || []).map((e) => e.unit)].filter(Boolean))]
-    : availableUnits;
+  const entradaAvailableUnits = (() => {
+    if (!entradaProduct) return ["Unidade"];
+    const unidades = [];
+    if (entradaProduct.unit) unidades.push(entradaProduct.unit);
+    (entradaProduct.estoqueItems || []).forEach((item) => {
+      if (item?.unit) unidades.push(item.unit);
+    });
+    // Reforço: unidades já existentes no estoque para este produto (caso o catálogo não traga estoqueItems)
+    estoqueItems.forEach((e) => {
+      if (e.productId === selectedProductId && e.unit) unidades.push(e.unit);
+    });
+    // Unidades comercializáveis configuradas para ESTE produto (base de cadastro).
+    // Só as unidades atreladas ao produto — não todas as unidades/fracionais do sistema.
+    if (entradaProduct.unitPrices && typeof entradaProduct.unitPrices === "object") {
+      Object.keys(entradaProduct.unitPrices).forEach((u) => {
+        if (u && !unidades.includes(u)) unidades.push(u);
+      });
+    }
+    const result = [...new Set(unidades.filter(Boolean))];
+    return result.length ? result : ["Unidade"];
+  })();
 
   // Separa itens zerados (falta no estoque) dos itens com saldo disponível
   const zeroedItems = filteredItems
@@ -764,7 +778,6 @@ const ProductList = () => {
           <div className="bp-header-col">PRODUTO</div>
           <div className="bp-header-col">QTD</div>
           <div className="bp-header-col">UNIDADE</div>
-          <div className="bp-header-col">EM UN.</div>
           <div className="bp-header-col">CATEGORIA</div>
           <div className="bp-header-col">VALOR UN</div>
           <div className="bp-header-col">CUSTO</div>
@@ -866,11 +879,6 @@ const ProductList = () => {
                                   </div>
                                   <div className="bp-info-row">
                                     <span className="bp-info-value">{item.unit}</span>
-                                  </div>
-                                  <div className="bp-info-row">
-                                    <span className="bp-info-value bp-unit-total" title={`Em ${getBaseUnit(item)}`}>
-                                      {item.quantity * (eqVal(item.unit) / eqVal(getBaseUnit(item)))}
-                                    </span>
                                   </div>
                                   <div className="bp-info-row">
                                     <span className="bp-info-value">

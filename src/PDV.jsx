@@ -1723,7 +1723,9 @@ const PDV = () => {
 
   // Abre modal de composição ou adiciona direto ao carrinho
   const handleProductClick = (product) => {
-    if (!product || product.quantity <= 0) return;
+    // Permite abrir/adicionar quando há estoque OU quando existe unidade irmã
+    // convertível (o servidor faz o desmembramento automático na venda).
+    if (!product || (product.quantity <= 0 && !hasConversionSibling(product))) return;
     if (product.composicoes && product.composicoes.length > 0) {
       setCompSelections({});
       setCompModalProduct(product);
@@ -1737,7 +1739,7 @@ const PDV = () => {
     if (!compModalProduct) return;
     
     // Validar estoque disponível
-    if (compModalProduct.quantity < 1) {
+    if (compModalProduct.quantity < 1 && !hasConversionSibling(compModalProduct)) {
       setMessage({ 
         show: true, 
         text: `Estoque insuficiente para "${compModalProduct.name}". Disponível: ${compModalProduct.quantity}.`, 
@@ -1829,8 +1831,8 @@ const PDV = () => {
   };
 
   const addToCart = (product) => {
-    // Validar estoque disponível
-    if (product.quantity < 1) {
+    // Validar estoque disponível (permite quando há unidade irmã convertível)
+    if (product.quantity < 1 && !hasConversionSibling(product)) {
       setMessage({ 
         show: true, 
         text: `Estoque insuficiente para "${product.name}". Disponível: ${product.quantity}, Solicitado: 1.`, 
@@ -2306,15 +2308,17 @@ const PDV = () => {
                 if (items.length === 1) {
                   const product = items[0];
                   const outOfStock = product.quantity <= 0;
+                  const convertible = outOfStock && hasConversionSibling(product);
                   const lowStock = !outOfStock && product.quantity <= LOW_STOCK_THRESHOLD;
                   return (
                     <div
                       key={product.id}
-                      className={`product-card${outOfStock ? ' product-card--out' : ''}${lowStock ? ' product-card--low' : ''}`}
-                      onClick={() => !outOfStock && handleProductClick(product)}
-                      title={outOfStock ? 'Produto esgotado' : lowStock ? `Atenção: apenas ${product.quantity} em estoque` : ''}
+                      className={`product-card${outOfStock && !convertible ? ' product-card--out' : ''}${lowStock ? ' product-card--low' : ''}`}
+                      onClick={() => (!outOfStock || convertible) && handleProductClick(product)}
+                      title={outOfStock ? (convertible ? 'Sem estoque nesta unidade — será convertido de outra unidade na venda' : 'Produto esgotado') : lowStock ? `Atenção: apenas ${product.quantity} em estoque` : ''}
                     >
-                      {outOfStock && <div className="pdv-stock-badge pdv-stock-badge--out">Esgotado</div>}
+                      {outOfStock && !convertible && <div className="pdv-stock-badge pdv-stock-badge--out">Esgotado</div>}
+                      {convertible && <div className="pdv-stock-badge pdv-stock-badge--convert">↩ Sob conversão</div>}
                       {lowStock && <div className="pdv-stock-badge pdv-stock-badge--low">⚠ Últimas {product.quantity}</div>}
                       <div className="product-namee">{product.name}</div>
                       <div className="product-price">{formatCurrency(product.value)}</div>
@@ -2328,15 +2332,17 @@ const PDV = () => {
                 const selectedId = selectedProductUnits[key] ?? items[0].id;
                 const selectedItem = items.find(i => i.id === selectedId) || items[0];
                 const outOfStockSelected = selectedItem.quantity <= 0;
+                const convertibleSelected = outOfStockSelected && hasConversionSibling(selectedItem);
                 const lowStockSelected = !outOfStockSelected && selectedItem.quantity <= LOW_STOCK_THRESHOLD;
                 return (
                   <div
                     key={key}
-                    className={`product-card product-card--multi${outOfStockSelected ? ' product-card--out' : ''}${lowStockSelected ? ' product-card--low' : ''}`}
-                    onClick={() => !outOfStockSelected && handleProductClick(selectedItem)}
-                    title={outOfStockSelected ? 'Produto esgotado' : lowStockSelected ? `Atenção: apenas ${selectedItem.quantity} em estoque` : ''}
+                    className={`product-card product-card--multi${outOfStockSelected && !convertibleSelected ? ' product-card--out' : ''}${lowStockSelected ? ' product-card--low' : ''}`}
+                    onClick={() => (!outOfStockSelected || convertibleSelected) && handleProductClick(selectedItem)}
+                    title={outOfStockSelected ? (convertibleSelected ? 'Sem estoque nesta unidade — será convertido de outra unidade na venda' : 'Produto esgotado') : lowStockSelected ? `Atenção: apenas ${selectedItem.quantity} em estoque` : ''}
                   >
-                    {outOfStockSelected && <div className="pdv-stock-badge pdv-stock-badge--out">Esgotado</div>}
+                    {outOfStockSelected && !convertibleSelected && <div className="pdv-stock-badge pdv-stock-badge--out">Esgotado</div>}
+                    {convertibleSelected && <div className="pdv-stock-badge pdv-stock-badge--convert">↩ Sob conversão</div>}
                     {lowStockSelected && <div className="pdv-stock-badge pdv-stock-badge--low">⚠ Últimas {selectedItem.quantity}</div>}
                     <div className="product-namee">{selectedItem.name}</div>
                     <div className="product-price">{formatCurrency(selectedItem.value)}</div>

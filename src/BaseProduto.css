@@ -343,18 +343,14 @@
 }
 
 .bp-header-col:nth-child(4) {
-  flex: 0 0 55px;
-}
-
-.bp-header-col:nth-child(5) {
   flex: 0 0 140px;
 }
 
-.bp-header-col:nth-child(6) {
+.bp-header-col:nth-child(5) {
   flex: 0 0 80px;
 }
 
-.bp-header-col:nth-child(7) {
+.bp-header-col:nth-child(6) {
   flex: 0 0 80px;
 }
 
@@ -528,18 +524,14 @@
 }
 
 .bp-info-row:nth-child(4) {
-  flex: 0 0 55px;
-}
-
-.bp-info-row:nth-child(5) {
   flex: 0 0 140px;
 }
 
-.bp-info-row:nth-child(6) {
+.bp-info-row:nth-child(5) {
   flex: 0 0 80px;
 }
 
-.bp-info-row:nth-child(7) {
+.bp-info-row:nth-child(6) {
   flex: 0 0 80px;
 }
 
@@ -959,7 +951,14 @@
   background: #fff;
   box-sizing: border-box;
   text-shadow: none;
+  color-scheme: light;
   transition: border-color 0.2s ease;
+}
+
+/* Garante texto legível nas opções do select (evita texto branco no modo escuro do SO) */
+.bp-entrada-field select option {
+  color: #333;
+  background: #fff;
 }
 
 .bp-entrada-field input:focus,

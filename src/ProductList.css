@@ -118,7 +118,7 @@ html, body {
 /* Header da lista de produtos */
 .product-list-header {
   display: grid;
-  grid-template-columns: 2fr 1fr 1.5fr 1fr 1fr 1.2fr;
+  grid-template-columns: 2fr 1fr 1.5fr 1fr 1fr 1.6fr 1.2fr;
   gap: 15px;
   align-items: center;
   padding: 15px 20px;
@@ -265,7 +265,7 @@ html, body {
 /* Product Info Display - Grid Layout igual ao header */
 .product-info-display {
   display: grid;
-  grid-template-columns: 2fr 1fr 1.5fr 1fr 1fr 1.2fr;
+  grid-template-columns: 2fr 1fr 1.5fr 1fr 1fr 1.6fr 1.2fr;
   gap: 15px;
   align-items: center;
   padding: 15px 20px;
@@ -280,6 +280,42 @@ html, body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Coluna: unidades comercializáveis (venda/custo por unidade) */
+.product-info-display span.product-units {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: stretch;
+}
+
+.product-unit-chip {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  padding: 3px 8px;
+  line-height: 1.25;
+}
+
+.product-unit-chip strong {
+  font-size: 12px;
+  color: #fff;
+}
+
+.product-unit-chip-vals {
+  font-size: 11px;
+  color: #cfe6d4;
+  white-space: nowrap;
+}
+
+.product-units-empty {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .product-name {
@@ -479,7 +515,7 @@ html, body {
 /* Ajustar o grid para dar mais espaço aos botões */
 .product-list-header,
 .product-info-display {
-  grid-template-columns: 2fr 1fr 1.5fr 1fr 1fr 90px; /* Coluna fixa para ações */
+  grid-template-columns: 2fr 1fr 1.5fr 1fr 1fr 1.6fr 90px; /* Coluna fixa para ações */
 }
 
 /* Responsividade para mobile */
@@ -504,7 +540,7 @@ html, body {
 @media (max-width: 1200px) {
   .product-list-header,
   .product-info-display {
-    grid-template-columns: 1.5fr 0.8fr 1.2fr 1fr 1fr 85px;
+    grid-template-columns: 1.5fr 0.8fr 1.2fr 1fr 1fr 1.4fr 85px;
     gap: 8px;
   }
 }
@@ -903,7 +939,7 @@ html, body {
 @media (max-width: 1200px) {
   .product-list-header,
   .product-info-display {
-    grid-template-columns: 1.5fr 0.8fr 1.2fr 1fr 1fr 1fr;
+    grid-template-columns: 1.5fr 0.8fr 1.2fr 1fr 1fr 1.4fr 1fr;
     gap: 10px;
   }
 }
