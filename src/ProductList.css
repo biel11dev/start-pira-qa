@@ -44,6 +44,20 @@ html, body {
   gap: 10px;
 }
 
+.base-unit-select {
+  width: 200px;
+  height: 40px;
+  margin: 5px 10px;
+  padding: 10px;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  font-size: 14px;
+  box-sizing: border-box;
+  min-width: 200px;
+  max-width: 200px;
+  text-shadow: none;
+}
+
 /* Padronizar tamanho de todos os campos do formulário */
 .input-group > input,
 .input-group > .custom-select,

@@ -568,8 +568,11 @@ const ProductList = () => {
         const prodName = creating ? (newProduct || "Novo produto") : editingProductData.name;
         const defValue = creating ? value : editingProductData.value;
         const defCost = creating ? valuecusto : editingProductData.valuecusto;
-        // Lista TODAS as unidades de medida cadastradas — o usuário define o valor de cada uma por produto.
-        const allUnits = [...new Set(["Unidade", ...Object.keys(unitEquivalences)])].filter(Boolean);
+        // Só as unidades comercializáveis DESTE produto:
+        // na criação, a(s) unidade(s) definida(s) no formulário; na edição, unidade + itens de estoque.
+        const allUnits = creating
+          ? [...new Set([unit, baseUnit].filter(Boolean))]
+          : (editingProductData._productUnits || []);
         const setUP = (u, field, val) => {
           const apply = (prev) => {
             const next = { ...(prev || {}) };
@@ -596,7 +599,11 @@ const ProductList = () => {
                 <span>Venda (R$)</span>
                 <span>Custo (R$)</span>
               </div>
-              {allUnits.map((u) => {
+              {allUnits.length === 0 ? (
+                <p style={{ color: '#333', fontSize: '13px', margin: '8px 0', textShadow: 'none' }}>
+                  Dê entrada no estoque para definir valores por unidade.
+                </p>
+              ) : allUnits.map((u) => {
                 const cfg = up[u] || {};
                 return (
                   <div className="unit-prices-row" key={u}>
@@ -954,6 +961,7 @@ const ProductList = () => {
         
         <button
           type="button"
+          style={{ marginTop: '19px' }}
           className="unit-prices-open-btn create-unit-prices-btn"
           onClick={() => { setEditingProduct(null); setIsUnitPricesModalOpen(true); }}
           disabled={isLoading}

@@ -234,7 +234,16 @@ const ProductList = () => {
     if (!selectedProductId) return;
     const prod = catalogProducts.find((p) => p.id === selectedProductId);
     if (!prod) return;
-    const cfg = prod.unitPrices && typeof prod.unitPrices === "object" ? prod.unitPrices[entradaUnit] : null;
+    // Resolve o preço da unidade selecionada: chave exata e, se não achar,
+    // por nome normalizado (ignora caixa/espaços) para evitar divergências
+    // entre a unidade da base de cadastro e a unidade escolhida na entrada.
+    const up = prod.unitPrices && typeof prod.unitPrices === "object" ? prod.unitPrices : {};
+    let cfg = up[entradaUnit];
+    if (!cfg && entradaUnit) {
+      const alvo = String(entradaUnit).trim().toLowerCase();
+      const chave = Object.keys(up).find((k) => String(k).trim().toLowerCase() === alvo);
+      if (chave) cfg = up[chave];
+    }
     setEntradaValue(cfg && cfg.value != null ? String(cfg.value) : (prod.value != null ? String(prod.value) : ""));
     setEntradaCusto(cfg && cfg.cost != null ? String(cfg.cost) : (prod.valuecusto != null ? String(prod.valuecusto) : ""));
   }, [selectedProductId, entradaUnit, catalogProducts]);
