@@ -58,7 +58,7 @@ const ProductList = () => {
   const [composicoes, setComposicoes] = useState([]);
   const [isLoadingComp, setIsLoadingComp] = useState(false);
   const [showNovaCompForm, setShowNovaCompForm] = useState(false);
-  const [novaComp, setNovaComp] = useState({ nome: '', descricao: '', obrigatorio: true, multiplo: false, maxOpcoes: 1 });
+  const [novaComp, setNovaComp] = useState({ nome: '', descricao: '', obrigatorio: true, multiplo: false, maxOpcoes: 1, montagem: false, porcoesGratis: 2, valorAdicional: 2.5 });
   const [novaOpcaoComp, setNovaOpcaoComp] = useState(null); // composicaoId com picker aberto
   const [estoqueList, setEstoqueList] = useState([]);       // todos os itens do estoque
   const [opcaoPicker, setOpcaoPicker] = useState({ search: '' }); // filtro no picker
@@ -566,17 +566,20 @@ const ProductList = () => {
   const handleAddComposicao = async () => {
     if (!novaComp.nome.trim()) return;
     try {
+      const montagem = novaComp.montagem;
       await axios.post(`${API_URL}/api/composicoes`, {
         estoqueId: composicaoItem.id,
         nome: novaComp.nome.trim(),
         descricao: novaComp.descricao.trim() || null,
-        obrigatorio: novaComp.obrigatorio,
-        multiplo: novaComp.multiplo,
+        obrigatorio: montagem ? true : novaComp.obrigatorio,
+        multiplo: montagem ? true : novaComp.multiplo,
         minOpcoes: 1,
-        maxOpcoes: novaComp.maxOpcoes,
+        maxOpcoes: montagem ? (parseInt(novaComp.maxOpcoes) || 4) : novaComp.maxOpcoes,
+        porcoesGratis: montagem ? (parseInt(novaComp.porcoesGratis) || 0) : 0,
+        valorAdicional: montagem ? (parseFloat(novaComp.valorAdicional) || 0) : 0,
         ordem: composicoes.length
       });
-      setNovaComp({ nome: '', descricao: '', obrigatorio: true, multiplo: false, maxOpcoes: 1 });
+      setNovaComp({ nome: '', descricao: '', obrigatorio: true, multiplo: false, maxOpcoes: 1, montagem: false, porcoesGratis: 2, valorAdicional: 2.5 });
       setShowNovaCompForm(false);
       await refreshComposicoes();
     } catch (e) {
@@ -1286,7 +1289,9 @@ const ProductList = () => {
                         {comp.descricao && <span className="bp-comp-descricao">{comp.descricao}</span>}
                         <div className="bp-comp-tags">
                           {comp.obrigatorio && <span className="bp-comp-tag bp-comp-tag--obrig">Obrigatório</span>}
-                          {comp.multiplo && <span className="bp-comp-tag bp-comp-tag--multi">Múltipla (até {comp.maxOpcoes})</span>}
+                          {comp.multiplo && (comp.valorAdicional > 0
+                            ? <span className="bp-comp-tag bp-comp-tag--multi">Montagem • até {comp.maxOpcoes} • {comp.porcoesGratis} grátis • +R$ {Number(comp.valorAdicional).toFixed(2)}</span>
+                            : <span className="bp-comp-tag bp-comp-tag--multi">Múltipla (até {comp.maxOpcoes})</span>)}
                         </div>
                       </div>
                       <button className="bp-comp-btn-delete" onClick={() => handleDeleteComposicao(comp.id)} title="Excluir componente"><FaTrash /></button>
@@ -1395,11 +1400,21 @@ const ProductList = () => {
                     <div className="bp-comp-nova-checks">
                       <label><input type="checkbox" checked={novaComp.obrigatorio} onChange={e => setNovaComp(prev => ({ ...prev, obrigatorio: e.target.checked }))} /> Obrigatório</label>
                       <label><input type="checkbox" checked={novaComp.multiplo} onChange={e => setNovaComp(prev => ({ ...prev, multiplo: e.target.checked, maxOpcoes: e.target.checked ? prev.maxOpcoes : 1 }))} /> Seleção múltipla</label>
-                      {novaComp.multiplo && <label>Máx. opções:&nbsp;<input type="number" min="1" max="10" value={novaComp.maxOpcoes} onChange={e => setNovaComp(prev => ({ ...prev, maxOpcoes: parseInt(e.target.value) || 1 }))} style={{ width: '50px' }} /></label>}
+                      {novaComp.multiplo && !novaComp.montagem && <label>Máx. opções:&nbsp;<input type="number" min="1" max="10" value={novaComp.maxOpcoes} onChange={e => setNovaComp(prev => ({ ...prev, maxOpcoes: parseInt(e.target.value) || 1 }))} style={{ width: '50px' }} /></label>}
                     </div>
+                    <div className="bp-comp-nova-checks">
+                      <label><input type="checkbox" checked={novaComp.montagem} onChange={e => setNovaComp(prev => ({ ...prev, montagem: e.target.checked, multiplo: e.target.checked ? true : prev.multiplo, maxOpcoes: e.target.checked ? (prev.maxOpcoes > 1 ? prev.maxOpcoes : 4) : prev.maxOpcoes }))} /> Montagem (vários sabores)</label>
+                    </div>
+                    {novaComp.montagem && (
+                      <div className="bp-comp-nova-row" style={{ gap: '10px', flexWrap: 'wrap' }}>
+                        <label>Máx. porções:&nbsp;<input type="number" min="1" max="10" value={novaComp.maxOpcoes} onChange={e => setNovaComp(prev => ({ ...prev, maxOpcoes: parseInt(e.target.value) || 1 }))} style={{ width: '55px' }} /></label>
+                        <label>Porções grátis:&nbsp;<input type="number" min="0" max="10" value={novaComp.porcoesGratis} onChange={e => setNovaComp(prev => ({ ...prev, porcoesGratis: parseInt(e.target.value) || 0 }))} style={{ width: '55px' }} /></label>
+                        <label>Valor adicional (R$):&nbsp;<input type="number" min="0" step="0.01" value={novaComp.valorAdicional} onChange={e => setNovaComp(prev => ({ ...prev, valorAdicional: e.target.value }))} style={{ width: '75px' }} /></label>
+                      </div>
+                    )}
                     <div className="bp-comp-nova-buttons">
                       <button onClick={handleAddComposicao} disabled={!novaComp.nome.trim()}><FaCheck /> Salvar Componente</button>
-                      <button onClick={() => { setShowNovaCompForm(false); setNovaComp({ nome: '', descricao: '', obrigatorio: true, multiplo: false, maxOpcoes: 1 }); }}><FaTimes /> Cancelar</button>
+                      <button onClick={() => { setShowNovaCompForm(false); setNovaComp({ nome: '', descricao: '', obrigatorio: true, multiplo: false, maxOpcoes: 1, montagem: false, porcoesGratis: 2, valorAdicional: 2.5 }); }}><FaTimes /> Cancelar</button>
                     </div>
                   </div>
                 ) : (

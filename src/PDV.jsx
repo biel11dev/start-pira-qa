@@ -1765,7 +1765,13 @@ const PDV = () => {
     for (const comp of comps) {
       const sel = compSelections[comp.id] || [];
       const selectedOpcoes = comp.opcoes.filter(o => sel.includes(o.id));
-      selectedOpcoes.forEach(o => { extraTotal += o.valorExtra || 0; });
+      const montagem = comp.multiplo && (comp.valorAdicional || 0) > 0;
+      if (montagem) {
+        const pagas = Math.max(0, selectedOpcoes.length - (comp.porcoesGratis || 0));
+        extraTotal += pagas * (comp.valorAdicional || 0);
+      } else {
+        selectedOpcoes.forEach(o => { extraTotal += o.valorExtra || 0; });
+      }
       if (selectedOpcoes.length > 0) labelParts.push(`${comp.nome}: ${selectedOpcoes.map(o => o.nome).join(', ')}`);
     }
     const finalPrice = compModalProduct.value + extraTotal;
@@ -5167,6 +5173,8 @@ const PDV = () => {
                 // atingir o máximo de opções (maxOpcoes); para simples, 1 opção.
                 const compCompleta = (comp) => {
                   const qtd = (compSelections[comp.id] || []).length;
+                  const montagem = comp.multiplo && (comp.valorAdicional || 0) > 0;
+                  if (montagem) return qtd >= (comp.minOpcoes || 1);
                   return comp.multiplo ? qtd >= (comp.maxOpcoes || 1) : qtd >= 1;
                 };
                 // Encontra o índice do primeiro grupo ainda não completo
@@ -5180,7 +5188,9 @@ const PDV = () => {
                   <div className="pdv-comp-group-title">
                     {comp.nome}
                     {comp.obrigatorio && <span className="pdv-comp-required">*obrigatório</span>}
-                    {comp.multiplo && <span className="pdv-comp-multi">até {comp.maxOpcoes}</span>}
+                    {comp.multiplo && ((comp.valorAdicional || 0) > 0
+                      ? <span className="pdv-comp-multi">{(compSelections[comp.id] || []).length}/{comp.maxOpcoes} • {comp.porcoesGratis} grátis • +{formatCurrency(comp.valorAdicional)}</span>
+                      : <span className="pdv-comp-multi">até {comp.maxOpcoes}</span>)}
                   </div>
                   <div className="pdv-comp-options">
                     {comp.opcoes.filter(o => o.disponivel).map(opcao => {
@@ -5213,7 +5223,12 @@ const PDV = () => {
               <span className="pdv-comp-modal-price">
                 {formatCurrency(compModalProduct.value + (compModalProduct.composicoes || []).reduce((sum, comp) => {
                   const sel = compSelections[comp.id] || [];
-                  return sum + comp.opcoes.filter(o => sel.includes(o.id)).reduce((s, o) => s + (o.valorExtra || 0), 0);
+                  const selectedOpcoes = comp.opcoes.filter(o => sel.includes(o.id));
+                  if (comp.multiplo && (comp.valorAdicional || 0) > 0) {
+                    const pagas = Math.max(0, selectedOpcoes.length - (comp.porcoesGratis || 0));
+                    return sum + pagas * (comp.valorAdicional || 0);
+                  }
+                  return sum + selectedOpcoes.reduce((s, o) => s + (o.valorExtra || 0), 0);
                 }, 0))}
               </span>
               <button className="pdv-comp-confirm-btn" onClick={confirmComposicao}>Adicionar ao Carrinho</button>
