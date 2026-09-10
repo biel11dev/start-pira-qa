@@ -59,6 +59,8 @@ const ProductList = () => {
   const [isLoadingComp, setIsLoadingComp] = useState(false);
   const [showNovaCompForm, setShowNovaCompForm] = useState(false);
   const [novaComp, setNovaComp] = useState({ nome: '', descricao: '', obrigatorio: true, multiplo: false, maxOpcoes: 1, montagem: false, porcoesGratis: 2, valorAdicional: 2.5 });
+  const [editMontagemId, setEditMontagemId] = useState(null); // composicaoId em edição de montagem
+  const [montagemEdit, setMontagemEdit] = useState({ montagem: false, maxOpcoes: 4, porcoesGratis: 2, valorAdicional: 2.5 });
   const [novaOpcaoComp, setNovaOpcaoComp] = useState(null); // composicaoId com picker aberto
   const [estoqueList, setEstoqueList] = useState([]);       // todos os itens do estoque
   const [opcaoPicker, setOpcaoPicker] = useState({ search: '' }); // filtro no picker
@@ -595,6 +597,39 @@ const ProductList = () => {
       await refreshComposicoes();
     } catch (e) {
       setMessage({ show: true, text: 'Erro ao excluir componente!', type: 'error' });
+      setTimeout(() => setMessage(null), 3000);
+    }
+  };
+
+  const abrirEdicaoMontagem = (comp) => {
+    const isMont = comp.multiplo && (comp.valorAdicional || 0) > 0;
+    setEditMontagemId(comp.id);
+    setMontagemEdit({
+      montagem: isMont,
+      maxOpcoes: comp.maxOpcoes && comp.maxOpcoes > 1 ? comp.maxOpcoes : 4,
+      porcoesGratis: comp.porcoesGratis || 2,
+      valorAdicional: comp.valorAdicional || 2.5,
+    });
+  };
+
+  const handleSalvarMontagem = async (comp) => {
+    try {
+      const m = montagemEdit;
+      await axios.put(`${API_URL}/api/composicoes/${comp.id}`, {
+        nome: comp.nome,
+        descricao: comp.descricao || null,
+        obrigatorio: m.montagem ? true : comp.obrigatorio,
+        multiplo: m.montagem ? true : comp.multiplo,
+        minOpcoes: 1,
+        maxOpcoes: m.montagem ? (parseInt(m.maxOpcoes) || 4) : comp.maxOpcoes,
+        ordem: comp.ordem || 0,
+        porcoesGratis: m.montagem ? (parseInt(m.porcoesGratis) || 0) : 0,
+        valorAdicional: m.montagem ? (parseFloat(String(m.valorAdicional).replace(',', '.')) || 0) : 0,
+      });
+      setEditMontagemId(null);
+      await refreshComposicoes();
+    } catch (e) {
+      setMessage({ show: true, text: 'Erro ao salvar montagem!', type: 'error' });
       setTimeout(() => setMessage(null), 3000);
     }
   };
@@ -1294,8 +1329,30 @@ const ProductList = () => {
                             : <span className="bp-comp-tag bp-comp-tag--multi">Múltipla (até {comp.maxOpcoes})</span>)}
                         </div>
                       </div>
-                      <button className="bp-comp-btn-delete" onClick={() => handleDeleteComposicao(comp.id)} title="Excluir componente"><FaTrash /></button>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button className="bp-comp-btn-delete" onClick={() => editMontagemId === comp.id ? setEditMontagemId(null) : abrirEdicaoMontagem(comp)} title="Configurar montagem"><FaLayerGroup /></button>
+                        <button className="bp-comp-btn-delete" onClick={() => handleDeleteComposicao(comp.id)} title="Excluir componente"><FaTrash /></button>
+                      </div>
                     </div>
+                    {editMontagemId === comp.id && (
+                      <div className="bp-comp-nova-form" style={{ marginTop: 8 }}>
+                        <h4>Montagem (vários sabores)</h4>
+                        <div className="bp-comp-nova-checks">
+                          <label><input type="checkbox" checked={montagemEdit.montagem} onChange={e => setMontagemEdit(prev => ({ ...prev, montagem: e.target.checked }))} /> Ativar montagem</label>
+                        </div>
+                        {montagemEdit.montagem && (
+                          <div className="bp-comp-nova-row" style={{ gap: '10px', flexWrap: 'wrap' }}>
+                            <label>Máx. porções:&nbsp;<input type="number" min="1" max="10" value={montagemEdit.maxOpcoes} onChange={e => setMontagemEdit(prev => ({ ...prev, maxOpcoes: parseInt(e.target.value) || 1 }))} style={{ width: '55px' }} /></label>
+                            <label>Porções grátis:&nbsp;<input type="number" min="0" max="10" value={montagemEdit.porcoesGratis} onChange={e => setMontagemEdit(prev => ({ ...prev, porcoesGratis: parseInt(e.target.value) || 0 }))} style={{ width: '55px' }} /></label>
+                            <label>Valor adicional (R$):&nbsp;<input type="number" min="0" step="0.01" value={montagemEdit.valorAdicional} onChange={e => setMontagemEdit(prev => ({ ...prev, valorAdicional: e.target.value }))} style={{ width: '75px' }} /></label>
+                          </div>
+                        )}
+                        <div className="bp-comp-nova-buttons">
+                          <button onClick={() => handleSalvarMontagem(comp)}><FaCheck /> Salvar</button>
+                          <button onClick={() => setEditMontagemId(null)}><FaTimes /> Cancelar</button>
+                        </div>
+                      </div>
+                    )}
                     <div className="bp-comp-opcoes">
                       {comp.opcoes.map(opcao => (
                         <div key={opcao.id} className={`bp-comp-opcao ${!opcao.disponivel ? 'bp-comp-opcao--inativo' : ''}`}>

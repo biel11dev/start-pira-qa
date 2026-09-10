@@ -264,8 +264,8 @@ const PDV = () => {
       if (cupomAplicado.tipo === "PERCENTUAL") return total * (cupomAplicado.valor / 100);
       return Math.min(cupomAplicado.valor, total);
     }
-    if (descontoTipo === "percentual" && descontoValor) return total * (parseFloat(descontoValor) / 100);
-    if (descontoTipo === "fixo" && descontoValor) return Math.min(parseFloat(descontoValor), total);
+    if (descontoTipo === "percentual" && descontoValor) return total * (parseFloat(String(descontoValor).replace(',', '.')) / 100);
+    if (descontoTipo === "valor" && descontoValor) return Math.min(parseFloat(String(descontoValor).replace(',', '.')), total);
     return 0;
   };
   const desconto = calcDesconto();
