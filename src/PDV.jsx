@@ -12,6 +12,7 @@ const PDV = () => {
 
   const [activeTab, setActiveTab] = useState("venda"); // "venda", "add"
   const [products, setProducts] = useState([]);
+  const [allEstoque, setAllEstoque] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -292,6 +293,8 @@ const PDV = () => {
     axios
       .get(`${API_URL}/api/estoque_prod`)
       .then((response) => {
+        // Lista completa (todas as unidades) usada para checar conversão de composição.
+        setAllEstoque(response.data || []);
         // Excluir itens que são apenas componentes de composição (vinculados via composicaoOpcoes)
         // e unidades ocultas no PDV por configuração do produto (product.pdvHiddenUnits)
         const vendiveis = response.data.filter(p =>
@@ -514,18 +517,10 @@ const PDV = () => {
     const token = localStorage.getItem("authToken");
     const headers = token ? { Authorization: `Bearer ${token}` } : {};
     const response = await axios.post(`${API_URL}/api/sales`, saleData, { headers });
-    if (needsVale) {
-      try {
-        await registrarGastosBarPorVale(
-          cart,
-          finalTotal,
-          isSplitPayment ? splitPayments.filter((s) => s.forma && s.valor) : null
-        );
-        fetchGastosBarSemanas();
-        fetchGastosBarResumo();
-      } catch (error) {
-        console.error("Erro ao registrar gastos do bar via Vale:", error);
-      }
+    if (needsVale || desconto > 0) {
+      // Lançamentos do Gastos Bar (vale/desconto) são criados no backend; só atualizamos a visualização.
+      fetchGastosBarSemanas();
+      fetchGastosBarResumo();
     }
     return response.data;
   };
@@ -1836,6 +1831,18 @@ const PDV = () => {
     });
   };
 
+  // Verifica se um ingrediente de composição (unidade zerada) pode ser atendido
+  // por conversão automática de outra unidade do mesmo produto com estoque.
+  const temIrmaoConvertivelOpcao = (estoqueOpcao) => {
+    if (!estoqueOpcao || estoqueOpcao.productId == null) return false;
+    return allEstoque.some(
+      (item) =>
+        item.productId === estoqueOpcao.productId &&
+        item.id !== estoqueOpcao.id &&
+        (item.quantity ?? 0) >= 1
+    );
+  };
+
   const addToCart = (product) => {
     // Validar estoque disponível (permite quando há unidade irmã convertível)
     if (product.quantity < 1 && !hasConversionSibling(product)) {
@@ -2092,18 +2099,10 @@ const PDV = () => {
     axios
       .post(`${API_URL}/api/sales`, saleData, { headers })
       .then(async () => {
-        if (needsVale) {
-          try {
-            await registrarGastosBarPorVale(
-              cart,
-              finalTotal,
-              isSplitPayment ? splitPayments.filter((s) => s.forma && s.valor) : null
-            );
-            fetchGastosBarSemanas();
-            fetchGastosBarResumo();
-          } catch (error) {
-            console.error("Erro ao registrar gastos do bar via Vale:", error);
-          }
+        if (needsVale || desconto > 0) {
+          // Lançamentos do Gastos Bar (vale/desconto) são criados no backend; só atualizamos a visualização.
+          fetchGastosBarSemanas();
+          fetchGastosBarResumo();
         }
         setMessage({ show: true, text: "Venda realizada com sucesso!", type: "success" });
         clearCart();
@@ -5002,19 +5001,21 @@ const PDV = () => {
                         <table className="pdv-pedido-itens-table">
                           <thead>
                             <tr>
-                              <th>Produto</th>
-                              <th>Qtd</th>
-                              <th>Unit.</th>
-                              <th>Total</th>
+                              <th style={{ textAlign: "left" }}>Produto</th>
+                              <th style={{ textAlign: "center" }}>Qtd</th>
+                              <th style={{ textAlign: "center" }}>Un. Medida</th>
+                              <th style={{ textAlign: "right" }}>Unit.</th>
+                              <th style={{ textAlign: "right" }}>Total</th>
                             </tr>
                           </thead>
                           <tbody>
                             {pedido.items.map(item => (
                               <tr key={item.id}>
-                                <td>{item.productName}</td>
-                                <td>{item.quantity}</td>
-                                <td>{formatCurrency(item.unitPrice)}</td>
-                                <td>{formatCurrency(item.total)}</td>
+                                <td style={{ textAlign: "left" }}>{item.productName}</td>
+                                <td style={{ textAlign: "center" }}>{item.quantity}</td>
+                                <td style={{ textAlign: "center" }}>{item.unit || "-"}</td>
+                                <td style={{ textAlign: "right" }}>{formatCurrency(item.unitPrice)}</td>
+                                <td style={{ textAlign: "right" }}>{formatCurrency(item.total)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -5196,7 +5197,7 @@ const PDV = () => {
                     {comp.opcoes.filter(o => o.disponivel).map(opcao => {
                       const selected = (compSelections[comp.id] || []).includes(opcao.id);
                       const stockQty = opcao.estoque?.quantity ?? null;
-                      const esgotado = stockQty !== null && stockQty <= 0;
+                      const esgotado = stockQty !== null && stockQty <= 0 && !temIrmaoConvertivelOpcao(opcao.estoque);
                       const pouco = stockQty !== null && stockQty > 0 && stockQty <= 3;
                       return (
                         <button

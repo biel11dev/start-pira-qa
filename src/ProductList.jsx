@@ -23,6 +23,7 @@ const ProductList = () => {
   const [isLoadingSave, setIsLoadingSave] = useState(false);
   const [isUnitPricesModalOpen, setIsUnitPricesModalOpen] = useState(false);
   const [newProductUnitPrices, setNewProductUnitPrices] = useState({});
+  const [unitPriceAddSel, setUnitPriceAddSel] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredProducts, setFilteredProducts] = useState([]);
   
@@ -570,9 +571,13 @@ const ProductList = () => {
         const defCost = creating ? valuecusto : editingProductData.valuecusto;
         // Só as unidades comercializáveis DESTE produto:
         // na criação, a(s) unidade(s) definida(s) no formulário; na edição, unidade + itens de estoque.
-        const allUnits = creating
+        const baseUnits = creating
           ? [...new Set([unit, baseUnit].filter(Boolean))]
           : (editingProductData._productUnits || []);
+        // Inclui também as unidades já configuradas em unitPrices (adicionadas manualmente).
+        const allUnits = [...new Set([...baseUnits, ...Object.keys(up)])];
+        // Unidades do catálogo global ainda não usadas por este produto.
+        const addableUnits = Object.keys(unitEquivalences).filter((u) => !allUnits.includes(u));
         const setUP = (u, field, val) => {
           const apply = (prev) => {
             const next = { ...(prev || {}) };
@@ -581,6 +586,33 @@ const ProductList = () => {
             else entry[field] = parseFloat(val);
             if (Object.keys(entry).length === 0) delete next[u];
             else next[u] = entry;
+            return next;
+          };
+          if (creating) setNewProductUnitPrices((prev) => apply(prev));
+          else setEditingProductData((prev) => ({ ...prev, unitPrices: apply(prev.unitPrices) }));
+        };
+        // Adiciona uma unidade comercializável (pré-preenchida com os valores padrão do produto).
+        const addUnit = (u) => {
+          if (!u) return;
+          const apply = (prev) => {
+            const next = { ...(prev || {}) };
+            if (!next[u]) {
+              next[u] = {
+                value: parseFloat(defValue) || 0,
+                cost: parseFloat(defCost) || 0,
+              };
+            }
+            return next;
+          };
+          if (creating) setNewProductUnitPrices((prev) => apply(prev));
+          else setEditingProductData((prev) => ({ ...prev, unitPrices: apply(prev.unitPrices) }));
+          setUnitPriceAddSel("");
+        };
+        // Remove uma unidade comercializável (limpa venda/custo configurados).
+        const removeUnit = (u) => {
+          const apply = (prev) => {
+            const next = { ...(prev || {}) };
+            delete next[u];
             return next;
           };
           if (creating) setNewProductUnitPrices((prev) => apply(prev));
@@ -601,13 +633,25 @@ const ProductList = () => {
               </div>
               {allUnits.length === 0 ? (
                 <p style={{ color: '#333', fontSize: '13px', margin: '8px 0', textShadow: 'none' }}>
-                  Dê entrada no estoque para definir valores por unidade.
+                  Dê entrada no estoque ou adicione uma unidade abaixo para definir valores.
                 </p>
               ) : allUnits.map((u) => {
                 const cfg = up[u] || {};
+                const podeRemover = !baseUnits.includes(u); // unidades com estoque não podem ser removidas
                 return (
                   <div className="unit-prices-row" key={u}>
-                    <span className="unit-prices-name">{u}</span>
+                    <span className="unit-prices-name">
+                      {u}
+                      <button
+                        type="button"
+                        className="unit-prices-remove"
+                        title={podeRemover ? "Remover unidade comercializável" : "Limpar valores (unidade com estoque)"}
+                        onClick={() => removeUnit(u)}
+                        style={{ marginLeft: 6, border: 'none', background: 'transparent', color: '#c0392b', cursor: 'pointer', fontWeight: 'bold', fontSize: 16, lineHeight: 1 }}
+                      >
+                        ×
+                      </button>
+                    </span>
                     <input
                       type="number"
                       step="0.01"
@@ -628,6 +672,20 @@ const ProductList = () => {
                 );
               })}
             </div>
+            {addableUnits.length > 0 && (
+              <div className="unit-prices-add" style={{ marginTop: 10 }}>
+                <select
+                  value={unitPriceAddSel}
+                  onChange={(e) => addUnit(e.target.value)}
+                  style={{ width: '100%', padding: '8px', borderRadius: 6 }}
+                >
+                  <option value="">+ Adicionar unidade comercializável…</option>
+                  {addableUnits.map((u) => (
+                    <option key={u} value={u}>{u}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="modal-buttons">
               <button onClick={() => setIsUnitPricesModalOpen(false)}>Concluir</button>
             </div>

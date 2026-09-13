@@ -760,11 +760,28 @@ const ProductList = () => {
     return result.length ? result : ["Unidade"];
   })();
 
-  // Separa itens zerados (falta no estoque) dos itens com saldo disponível
+  // Separa itens zerados (falta no estoque) dos itens com saldo disponível.
+  // Um item zerado NÃO está em falta se houver unidade de medida maior do mesmo
+  // produto com estoque disponível (conversão automática na venda).
+  const hasConversionSibling = (item) => {
+    const pid = item.productId;
+    if (!pid) return false;
+    const currentIsFractional = fractionalUnits.includes(item.unit);
+    const currentVal = eqVal(item.unit);
+    return estoqueItems.some((s) => {
+      if (s.productId !== pid || s.id === item.id) return false;
+      if ((s.quantity ?? 0) < 1) return false;
+      if (currentIsFractional) return true; // qualquer unidade-pai desmembra em frações
+      return eqVal(s.unit) > currentVal; // irmã com unidade maior
+    });
+  };
+
   const zeroedItems = filteredItems
-    .filter((item) => (item.quantity ?? 0) <= 0)
+    .filter((item) => (item.quantity ?? 0) <= 0 && !hasConversionSibling(item))
     .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-  const activeItems = filteredItems.filter((item) => (item.quantity ?? 0) > 0);
+  const activeItems = filteredItems.filter(
+    (item) => (item.quantity ?? 0) > 0 || hasConversionSibling(item)
+  );
 
   return (
     <div className="bp-container">
