@@ -17,6 +17,7 @@ const CashRegister = () => {
   const [cartaofimcaixa, setCartaofimcaixa] = useState({});
   const [dinheirofimcaixa, setDinheirofimcaixa] = useState({});
   const [showMessage, setShowMessage] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [balances, setBalances] = useState([]);
   const [activeTab, setActiveTab] = useState("weekly");
   const [selectedWeek, setSelectedWeek] = useState(0);
@@ -96,6 +97,8 @@ const CashRegister = () => {
       })
       .catch((error) => {
         console.error("Erro ao adicionar saldo:", error);
+        setErrorMessage(error.response?.data?.error || "Erro ao adicionar saldo de caixa!");
+        setTimeout(() => setErrorMessage(""), 4000);
       });
   };
 
@@ -125,6 +128,8 @@ const CashRegister = () => {
       })
       .catch((error) => {
         console.error("Erro ao atualizar saldo:", error);
+        setErrorMessage(error.response?.data?.error || "Erro ao atualizar saldo de caixa!");
+        setTimeout(() => setErrorMessage(""), 4000);
       });
   };
 
@@ -143,6 +148,9 @@ const CashRegister = () => {
       })
       .catch((error) => {
         console.error("Erro ao excluir saldo:", error);
+        setConfirmDelete({ show: false, id: null });
+        setErrorMessage(error.response?.data?.error || "Erro ao excluir saldo!");
+        setTimeout(() => setErrorMessage(""), 4000);
       });
   };
 
@@ -456,6 +464,7 @@ const CashRegister = () => {
         </div>
       )}
       {showMessage && <Message message="Saldo de caixa atualizado com sucesso!" type="success" onClose={() => setShowMessage(false)} />}
+      {errorMessage && <Message message={errorMessage} type="error" onClose={() => setErrorMessage("")} />}
       {confirmDelete.show && <Message message="Tem certeza que deseja excluir este saldo?" type="warning" onClose={cancelDeleteBalance} onConfirm={confirmDeleteBalance} />}
       <div className="tabs">
         <button onClick={() => setActiveTab("weekly")} className={activeTab === "weekly" ? "active" : ""}>

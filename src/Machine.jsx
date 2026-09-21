@@ -2,9 +2,11 @@ import axios from "axios";
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Machine.css";
+import Message from "./Message";
 
 const Machines = ({ machines, setMachines }) => {
   const [newMachine, setNewMachine] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -28,6 +30,8 @@ const Machines = ({ machines, setMachines }) => {
         })
         .catch((error) => {
           console.error("Erro ao adicionar máquina:", error);
+          setErrorMessage(error.response?.data?.error || "Erro ao adicionar máquina!");
+          setTimeout(() => setErrorMessage(""), 4000);
         });
     }
   };
@@ -42,6 +46,8 @@ const Machines = ({ machines, setMachines }) => {
       .catch((error) => {
         console.error("Erro ao excluir máquina:", error);
         console.error("Dados enviados para a API:", { machineId: parsedMachineId });
+        setErrorMessage(error.response?.data?.error || "Erro ao excluir máquina!");
+        setTimeout(() => setErrorMessage(""), 4000);
       });
   };
 
@@ -60,6 +66,7 @@ const Machines = ({ machines, setMachines }) => {
           </li>
         ))}
       </ul>
+      {errorMessage && <Message message={errorMessage} type="error" onClose={() => setErrorMessage("")} />}
     </div>
   );
 };

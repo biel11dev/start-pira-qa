@@ -38,6 +38,7 @@
   background-color: #f8d7da;
   color: #721c24;
   text-shadow: none;
+  margin-top: -14px !important;
 }
 
 .message-buttons {

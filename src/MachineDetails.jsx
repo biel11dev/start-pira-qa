@@ -147,6 +147,10 @@ const MachineDetails = () => {
           })
           .catch((error) => {
             console.error("Erro ao excluir leitura diária:", error);
+            setMessage({ text: error.response?.data?.error || "Erro ao excluir leitura diária!", type: "error" });
+            setTimeout(() => {
+              setMessage(null);
+            }, 3000);
           });
       },
     });

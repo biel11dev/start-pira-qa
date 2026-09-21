@@ -191,6 +191,8 @@ const Pessoal = () => {
                 })
                 .catch((error) => {
                   console.error("Erro ao adicionar despesa futura:", error);
+                  setMessage({ show: true, text: "Despesa criada, mas houve falha ao replicar para um mês futuro. Verifique os próximos meses.", type: "error" });
+                  setTimeout(() => setMessage(null), 5000);
                 });
 
               nextMonth = addMonths(nextMonth, 1);

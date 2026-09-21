@@ -22,6 +22,7 @@ const PDV = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [saleError, setSaleError] = useState(null);
   const [amountReceived, setAmountReceived] = useState("");
   const [change, setChange] = useState(0);
 
@@ -1986,6 +1987,7 @@ const PDV = () => {
     setShowNewClientInput(false);
     setClientSearchTerm("");
     setAmountReceived("");
+    setSaleError(null);
     setShowPaymentModal(true);
   };
 
@@ -2005,6 +2007,7 @@ const PDV = () => {
 
   const confirmPayment = () => {
     if (!canConfirmPayment()) return;
+    setSaleError(null);
 
     // Saque junto da venda não é compatível com pagamento dividido
     if (saqueVendaNum > 0 && isSplitPayment) {
@@ -2068,7 +2071,7 @@ const PDV = () => {
         .catch((error) => {
           console.error("Erro ao fechar comanda:", error);
           const errorMsg = error.response?.data?.error || "Erro ao fechar comanda!";
-          setShowPaymentModal(false);
+          setSaleError(String(errorMsg));
           setMessage({ show: true, text: errorMsg, type: "error" });
           setTimeout(() => setMessage(null), 5000);
         })
@@ -2112,10 +2115,11 @@ const PDV = () => {
       })
       .catch((error) => {
         console.error("Erro ao registrar venda:", error);
-        const errorMsg = error.response?.data?.error || "Erro ao registrar venda!";
+        const errorMsg = String(error.response?.data?.error || error.message || "Erro ao registrar venda!");
         const isStockError = errorMsg.toLowerCase().includes("estoque") || errorMsg.toLowerCase().includes("esgotado") || errorMsg.toLowerCase().includes("insuficiente");
         const duration = isStockError ? 10000 : 5000;
-        setShowPaymentModal(false);
+        // Mantém o modal aberto com o erro visível até o usuário fechar.
+        setSaleError(errorMsg);
         setMessage({ show: true, text: errorMsg, type: "error" });
         setTimeout(() => {
           setMessage(null);
@@ -2127,6 +2131,7 @@ const PDV = () => {
 
   const cancelPayment = () => {
     setShowPaymentModal(false);
+    setSaleError(null);
     setAmountReceived("");
     setChange(0);
     setValePassword("");
@@ -4491,6 +4496,13 @@ const PDV = () => {
         <div className="modal">
           <div className="modal-content payment-modal">
             <h3 style={{ textShadow: "none" }}>{comandaEmPagamento ? `Pagar Comanda #${comandaEmPagamento.id}` : "Finalizar Pagamento"}</h3>
+
+            {saleError && (
+              <div className="pdv-sale-error" role="alert">
+                <span className="pdv-sale-error-text">{saleError}</span>
+                <button type="button" className="pdv-sale-error-close" onClick={() => setSaleError(null)} aria-label="Fechar aviso">✕</button>
+              </div>
+            )}
 
             <div className="payment-summary">
               <div className="summary-row">
