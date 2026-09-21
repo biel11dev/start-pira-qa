@@ -1359,6 +1359,8 @@
   transition: background 0.2s;
 }
 .bp-btn-composicao:hover { background: #574bd2; }
+.bp-btn-composicao--ativo { background: #e17055; }
+.bp-btn-composicao--ativo:hover { background: #c65a3f; }
 
 .bp-modal-composicao {
   max-width: 620px;
@@ -1492,6 +1494,49 @@
   border-radius: 5px;
 }
 .bp-comp-opcao-delete:hover { background: #ffe0e0; }
+
+.bp-comp-opcao-edit-valor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  background: #f8f9ff;
+  border: 1px solid #c9b8f8;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: -2px 0 4px 0;
+  font-size: 0.82rem;
+}
+.bp-comp-opcao-edit-valor input {
+  width: 80px;
+  padding: 3px 6px;
+  border: 1px solid #dfe6e9;
+  border-radius: 5px;
+}
+.bp-comp-opcao-edit-valor button {
+  border: none;
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.bp-comp-opcao-edit-valor button:first-of-type { background: #00b894; color: #fff; }
+.bp-comp-opcao-edit-valor button:last-of-type { background: #dfe6e9; color: #2d3436; }
+
+.bp-comp-picker-valor-extra {
+  padding: 8px 10px;
+  font-size: 0.82rem;
+  border-bottom: 1px solid #e2d8fb;
+}
+.bp-comp-picker-valor-extra input {
+  width: 90px;
+  padding: 3px 6px;
+  border: 1px solid #dfe6e9;
+  border-radius: 5px;
+}
 
 /* ---------- STOCK PICKER ---------- */
 .bp-comp-picker {

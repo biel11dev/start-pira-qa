@@ -19,6 +19,7 @@ const ProductList = () => {
   const [editingProductData, setEditingProductData] = useState({});
   const [newUnit, setNewUnit] = useState("");
   const [isUnitModalOpen, setIsUnitModalOpen] = useState(false);
+  const [unitFilter, setUnitFilter] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingSave, setIsLoadingSave] = useState(false);
   const [isUnitPricesModalOpen, setIsUnitPricesModalOpen] = useState(false);
@@ -300,6 +301,7 @@ const ProductList = () => {
   };
 
   const handleUnitSelection = (selectedUnit) => {
+    setUnitFilter("");
     if (selectedUnit !== "Unidade" && !unitEquivalences[selectedUnit]) {
       setSelectedUnitForEquivalence(selectedUnit);
       setIsUnitEquivalenceModalOpen(true);
@@ -641,16 +643,16 @@ const ProductList = () => {
                 return (
                   <div className="unit-prices-row" key={u}>
                     <span className="unit-prices-name">
-                      {u}
                       <button
                         type="button"
                         className="unit-prices-remove"
                         title={podeRemover ? "Remover unidade comercializável" : "Limpar valores (unidade com estoque)"}
                         onClick={() => removeUnit(u)}
-                        style={{ marginLeft: 6, border: 'none', background: 'transparent', color: '#c0392b', cursor: 'pointer', fontWeight: 'bold', fontSize: 16, lineHeight: 1 }}
+                        style={{ marginRight: 6, border: 'none', background: 'transparent', color: '#c0392b', cursor: 'pointer', fontWeight: 'bold', fontSize: 16, lineHeight: 1, textShadow: 'none' }}
                       >
                         ×
                       </button>
+                      {u}
                     </span>
                     <input
                       type="number"
@@ -860,12 +862,24 @@ const ProductList = () => {
             )}
           </div>
           <ul className="unit-dropdown">
+            <li>
+              <input
+                type="text"
+                className="expense-filter-input"
+                placeholder="Filtrar unidades..."
+                value={unitFilter}
+                onChange={(e) => setUnitFilter(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </li>
             <li className="unit-item">
-              <span className="unit-name" onClick={() => setUnit("Unidade")}>
+              <span className="unit-name" onClick={() => { setUnit("Unidade"); setUnitFilter(""); }}>
                 Unidade
               </span>
             </li>
-            {Object.keys(unitEquivalences).filter(u => u !== "Unidade").map((u, index) => (
+            {Object.keys(unitEquivalences)
+              .filter((u) => u !== "Unidade" && u.toLowerCase().includes(unitFilter.toLowerCase()))
+              .map((u, index) => (
               <li key={index} className="unit-item">
                 <span className="unit-name" onClick={() => handleUnitSelection(u)}>
                   {u}
@@ -1019,7 +1033,7 @@ const ProductList = () => {
         
         <button
           type="button"
-          style={{ marginTop: '19px' }}
+          style={{ marginTop: '19px', textShadow: 'none' }}
           className="unit-prices-open-btn create-unit-prices-btn"
           onClick={() => { setEditingProduct(null); setIsUnitPricesModalOpen(true); }}
           disabled={isLoading}
@@ -1190,6 +1204,7 @@ const ProductList = () => {
                             <label className="product-edit-label">Valores por unidade</label>
                             <button
                               type="button"
+                              style={{ textShadow: 'none' }}
                               className="unit-prices-open-btn"
                               onClick={() => setIsUnitPricesModalOpen(true)}
                             >

@@ -1,6 +1,6 @@
 import axios from "axios";
 import React, { useContext, useEffect, useState } from "react";
-import { FaSpinner, FaExchangeAlt, FaPlus, FaBoxOpen, FaLayerGroup, FaTrash, FaTimes, FaCheck, FaBell } from "react-icons/fa";
+import { FaSpinner, FaExchangeAlt, FaPlus, FaBoxOpen, FaLayerGroup, FaTrash, FaTimes, FaCheck, FaBell, FaPen } from "react-icons/fa";
 import * as XLSX from "xlsx";
 import Message from "./Message";
 import { AuthContext } from "./AuthContext";
@@ -62,6 +62,9 @@ const ProductList = () => {
   const [editMontagemId, setEditMontagemId] = useState(null); // composicaoId em edição de montagem
   const [montagemEdit, setMontagemEdit] = useState({ montagem: false, maxOpcoes: 4, porcoesGratis: 2, valorAdicional: 2.5 });
   const [novaOpcaoComp, setNovaOpcaoComp] = useState(null); // composicaoId com picker aberto
+  const [novaOpcaoValorExtra, setNovaOpcaoValorExtra] = useState('0'); // valor adicional ao vincular item existente
+  const [editOpcaoValorId, setEditOpcaoValorId] = useState(null); // opcaoId em edição do valor adicional
+  const [editOpcaoValorValue, setEditOpcaoValorValue] = useState('0');
   const [estoqueList, setEstoqueList] = useState([]);       // todos os itens do estoque
   const [opcaoPicker, setOpcaoPicker] = useState({ search: '' }); // filtro no picker
   const [showNovoItemForm, setShowNovoItemForm] = useState(false); // form de criar novo item
@@ -651,13 +654,15 @@ const ProductList = () => {
     setSavingOpcao(true);
     try {
       const target = resolveFractionalTarget(estoqueItem);
+      const valorExtra = parseFloat(String(novaOpcaoValorExtra).replace(',', '.')) || 0;
       await axios.post(`${API_URL}/api/composicoes/${composicaoId}/opcoes`, {
         nome: target.name,
-        valorExtra: 0,
+        valorExtra,
         estoqueId: target.id
       });
       const estoqRes = await axios.get(`${API_URL}/api/estoque_prod`);
       setEstoqueList(estoqRes.data.sort((a, b) => a.name.localeCompare(b.name)));
+      setNovaOpcaoValorExtra('0');
       await refreshComposicoes();
       if (target.id !== estoqueItem.id) {
         setMessage({
@@ -705,12 +710,14 @@ const ProductList = () => {
     setNovaOpcaoComp(null);
     setShowNovoItemForm(false);
     setOpcaoPicker({ search: '' });
+    setNovaOpcaoValorExtra('0');
     setNovoItemData({ nome: '', unit: 'Unidade', quantity: '1', value: '0', valuecusto: '0', valorExtra: '0' });
   };
 
   const handleDeleteOpcao = async (opcaoId) => {
     try {
       await axios.delete(`${API_URL}/api/composicoes/opcoes/${opcaoId}`);
+      if (editOpcaoValorId === opcaoId) setEditOpcaoValorId(null);
       await refreshComposicoes();
     } catch (e) {
       setMessage({ show: true, text: 'Erro ao excluir opção!', type: 'error' });
@@ -724,6 +731,24 @@ const ProductList = () => {
       await refreshComposicoes();
     } catch (e) {
       setMessage({ show: true, text: 'Erro ao atualizar opção!', type: 'error' });
+      setTimeout(() => setMessage(null), 3000);
+    }
+  };
+
+  // Regra de cobrança por componente específico (valorExtra da opção)
+  const handleEditOpcaoValor = (opcao) => {
+    setEditOpcaoValorId(opcao.id);
+    setEditOpcaoValorValue(opcao.valorExtra != null ? String(opcao.valorExtra) : '0');
+  };
+
+  const handleSalvarOpcaoValor = async (opcao) => {
+    try {
+      const valorExtra = parseFloat(String(editOpcaoValorValue).replace(',', '.')) || 0;
+      await axios.put(`${API_URL}/api/composicoes/opcoes/${opcao.id}`, { valorExtra });
+      setEditOpcaoValorId(null);
+      await refreshComposicoes();
+    } catch (e) {
+      setMessage({ show: true, text: 'Erro ao salvar valor adicional!', type: 'error' });
       setTimeout(() => setMessage(null), 3000);
     }
   };
@@ -979,8 +1004,12 @@ const ProductList = () => {
                                   >
                                     <FaBell />
                                   </button>
-                                  <button className="bp-btn-composicao" onClick={() => openComposicaoModal(item)} title="Gerenciar composição / variantes">
-                                    <FaLayerGroup />
+                                  <button
+                                    className={`bp-btn-composicao ${item.composicoes?.length ? 'bp-btn-composicao--ativo' : ''}`}
+                                    onClick={() => openComposicaoModal(item)}
+                                    title={item.composicoes?.length ? `Gerenciar composição / variantes (${item.composicoes.length})` : "Gerenciar composição / variantes"}
+                                  >
+                                    <FaLayerGroup /> {item.composicoes?.length > 0 && item.composicoes.length}
                                   </button>
                                   <button className="bp-btn-update" onClick={() => handleUpdateProduct(item)}>Editar</button>
                                   <button className="bp-btn-delete" onClick={() => handleDeleteProduct(item.id)}>Excluir</button>
@@ -1372,18 +1401,28 @@ const ProductList = () => {
                     )}
                     <div className="bp-comp-opcoes">
                       {comp.opcoes.map(opcao => (
-                        <div key={opcao.id} className={`bp-comp-opcao ${!opcao.disponivel ? 'bp-comp-opcao--inativo' : ''}`}>
-                          <span className="bp-comp-opcao-nome">{opcao.nome}</span>
-                          {opcao.valorExtra > 0 && <span className="bp-comp-opcao-extra">+{formatCurrency(opcao.valorExtra)}</span>}
-                          {opcao.estoque && (
-                            <span className={`bp-comp-opcao-estoque ${opcao.estoque.quantity <= 0 ? 'bp-comp-opcao-estoque--zero' : opcao.estoque.quantity <= 3 ? 'bp-comp-opcao-estoque--low' : ''}`}>
-                              📦 {opcao.estoque.name}: {opcao.estoque.quantity}
-                            </span>
-                          )}
-                          <div className="bp-comp-opcao-actions">
-                            <button className={`bp-comp-opcao-toggle ${opcao.disponivel ? 'bp-comp-opcao-toggle--ativo' : ''}`} onClick={() => handleToggleOpcao(opcao.id, opcao.disponivel)} title={opcao.disponivel ? 'Desativar' : 'Ativar'}>{opcao.disponivel ? <FaCheck /> : '○'}</button>
-                            <button className="bp-comp-opcao-delete" onClick={() => handleDeleteOpcao(opcao.id)}><FaTimes /></button>
+                        <div key={opcao.id}>
+                          <div className={`bp-comp-opcao ${!opcao.disponivel ? 'bp-comp-opcao--inativo' : ''}`}>
+                            <span className="bp-comp-opcao-nome">{opcao.nome}</span>
+                            {opcao.valorExtra > 0 && <span className="bp-comp-opcao-extra">+{formatCurrency(opcao.valorExtra)}</span>}
+                            {opcao.estoque && (
+                              <span className={`bp-comp-opcao-estoque ${opcao.estoque.quantity <= 0 ? 'bp-comp-opcao-estoque--zero' : opcao.estoque.quantity <= 3 ? 'bp-comp-opcao-estoque--low' : ''}`}>
+                                📦 {opcao.estoque.name}: {opcao.estoque.quantity}
+                              </span>
+                            )}
+                            <div className="bp-comp-opcao-actions">
+                              <button className="bp-comp-opcao-toggle" onClick={() => editOpcaoValorId === opcao.id ? setEditOpcaoValorId(null) : handleEditOpcaoValor(opcao)} title="Definir valor adicional deste componente"><FaPen /></button>
+                              <button className={`bp-comp-opcao-toggle ${opcao.disponivel ? 'bp-comp-opcao-toggle--ativo' : ''}`} onClick={() => handleToggleOpcao(opcao.id, opcao.disponivel)} title={opcao.disponivel ? 'Desativar' : 'Ativar'}>{opcao.disponivel ? <FaCheck /> : '○'}</button>
+                              <button className="bp-comp-opcao-delete" onClick={() => handleDeleteOpcao(opcao.id)}><FaTimes /></button>
+                            </div>
                           </div>
+                          {editOpcaoValorId === opcao.id && (
+                            <div className="bp-comp-opcao-edit-valor">
+                              <label>Valor adicional (R$):&nbsp;<input type="number" min="0" step="0.01" value={editOpcaoValorValue} onChange={e => setEditOpcaoValorValue(e.target.value)} autoFocus /></label>
+                              <button onClick={() => handleSalvarOpcaoValor(opcao)}><FaCheck /> Salvar</button>
+                              <button onClick={() => setEditOpcaoValorId(null)}><FaTimes /> Cancelar</button>
+                            </div>
+                          )}
                         </div>
                       ))}
                       {novaOpcaoComp === comp.id ? (
@@ -1398,6 +1437,11 @@ const ProductList = () => {
                               autoFocus
                             />
                             <button className="bp-comp-picker-close" onClick={closePicker}><FaTimes /></button>
+                          </div>
+                          <div className="bp-comp-picker-valor-extra">
+                            <label>Valor adicional deste componente (R$):&nbsp;
+                              <input type="number" min="0" step="0.01" value={novaOpcaoValorExtra} onChange={e => setNovaOpcaoValorExtra(e.target.value)} />
+                            </label>
                           </div>
                           <div className="bp-comp-picker-list">
                             {(() => {
@@ -1456,7 +1500,7 @@ const ProductList = () => {
                           )}
                         </div>
                       ) : (
-                        <button className="bp-comp-add-opcao-btn" onClick={() => { setNovaOpcaoComp(comp.id); setOpcaoPicker({ search: '' }); setShowNovoItemForm(false); }}><FaPlus /> Adicionar opção</button>
+                        <button className="bp-comp-add-opcao-btn" onClick={() => { setNovaOpcaoComp(comp.id); setOpcaoPicker({ search: '' }); setShowNovoItemForm(false); setNovaOpcaoValorExtra('0'); }}><FaPlus /> Adicionar opção</button>
                       )}
                     </div>
                   </div>
