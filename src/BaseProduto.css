@@ -328,6 +328,7 @@
   text-transform: uppercase;
   color: #fff;
   text-align: left;
+  text-shadow: none;
 }
 
 .bp-header-col:first-child {
@@ -457,6 +458,7 @@
   font-size: 12px;
   font-weight: 500;
   transition: all 0.3s ease;
+  text-shadow: none;
 }
 
 .bp-expand-btn:hover {
@@ -553,12 +555,14 @@
   color: #ff4444;
   font-weight: 700;
   font-size: 16px;
+  text-shadow: none;
 }
 
 .bp-value-destaquee {
   color: #ffffff;
   font-weight: 700;
   font-size: 16px;
+  text-shadow: none;
 }
 
 /* Botões de ação - À DIREITA */
@@ -580,6 +584,7 @@
   cursor: pointer;
   font-weight: 500;
   transition: all 0.2s ease;
+  text-shadow: none;
 }
 
 .bp-btn-update {
@@ -756,6 +761,7 @@
   color: #fff;
   cursor: pointer;
   font-weight: 600;
+  text-shadow: none;
 }
 
 .bp-btn-export:hover {
@@ -822,6 +828,11 @@
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
+  text-shadow: none;
+}
+
+.modal-buttons button {
+  text-shadow: none;
 }
 
 .bp-modal-buttons button:first-child {
@@ -903,6 +914,7 @@
   transition: all 0.3s ease;
   white-space: nowrap;
   box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+  text-shadow: none;
 }
 
 .bp-btn-entrada:hover {
@@ -1357,10 +1369,62 @@
   align-items: center;
   gap: 5px;
   transition: background 0.2s;
+  text-shadow: none;
 }
 .bp-btn-composicao:hover { background: #574bd2; }
-.bp-btn-composicao--ativo { background: #e17055; }
-.bp-btn-composicao--ativo:hover { background: #c65a3f; }
+
+/* ============ VARIAÇÃO DE VENDA (COMBO) ============ */
+.bp-btn-combo {
+  background: #b2bec3;
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: background 0.2s;
+}
+.bp-btn-combo:hover { background: #8c9799; }
+.bp-btn-combo--ativo { background: #9b59b6; }
+.bp-btn-combo--ativo:hover { background: #8e44ad; }
+
+.bp-combo-sub { color: #636e72; font-size: 0.88rem; margin: 0 0 14px; text-shadow: none; }
+.bp-combo-check { display: flex; align-items: center; font-size: 0.92rem; margin-bottom: 10px; text-shadow: none; }
+.bp-combo-help {
+  font-size: 0.8rem;
+  color: #636e72;
+  background: #f8f9ff;
+  border-left: 3px solid #9b59b6;
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin: 0 0 12px;
+  text-shadow: none;
+}
+.bp-combo-label { display: flex; flex-direction: column; gap: 4px; font-size: 0.88rem; margin-bottom: 12px; text-shadow: none; }
+.bp-combo-label input {
+  padding: 8px 10px;
+  border: 1px solid #dfe6e9;
+  border-radius: 6px;
+  text-shadow: none;
+}
+
+.bp-comp-tag--regra {
+  background: #dfe6e9;
+  color: #2d3436;
+  border: none;
+  cursor: pointer;
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-weight: 600;
+  text-shadow: none;
+}
+.bp-comp-tag--regra-on { background: #9b59b6; color: #fff; text-shadow: none; }
+.bp-btn-composicao--ativo { background: #e17055; text-shadow: none; }
+.bp-btn-composicao--ativo:hover { background: #c65a3f; text-shadow: none; }
 
 .bp-modal-composicao {
   max-width: 620px;
@@ -1457,7 +1521,7 @@
   border-radius: 8px;
 }
 .bp-comp-opcao--inativo { opacity: 0.45; }
-.bp-comp-opcao-nome { flex: 1; font-size: 0.9rem; }
+.bp-comp-opcao-nome { flex: 1; font-size: 0.9rem; text-shadow: none; font-weight: 600; }
 .bp-comp-opcao-extra { font-size: 0.82rem; color: #27ae60; font-weight: 600; }
 .bp-comp-opcao-estoque {
   font-size: 0.72rem;
@@ -1466,6 +1530,7 @@
   background: #dfe6e9;
   color: #2d3436;
   font-weight: 600;
+  text-shadow: none;
 }
 .bp-comp-opcao-estoque--zero { background: #e74c3c; color: #fff; }
 .bp-comp-opcao-estoque--low { background: #fdcb6e; color: #6d4c00; }
@@ -1482,8 +1547,10 @@
   justify-content: center;
   font-size: 0.75rem;
   transition: background 0.2s;
+  text-shadow: none;
 }
 .bp-comp-opcao-toggle--ativo { background: #00b894; color: #fff; }
+.bp-comp-opcao-toggle--base { background: #f1c40f; color: #fff; }
 .bp-comp-opcao-delete {
   background: none;
   border: none;
@@ -1530,12 +1597,18 @@
   padding: 8px 10px;
   font-size: 0.82rem;
   border-bottom: 1px solid #e2d8fb;
+  text-shadow: none;
 }
 .bp-comp-picker-valor-extra input {
-  width: 90px;
+  width: 30px;
   padding: 3px 6px;
   border: 1px solid #dfe6e9;
   border-radius: 5px;
+  text-shadow: none;
+}
+
+.bp-comp-picker-valor-extra label {
+  text-shadow: none;
 }
 
 /* ---------- STOCK PICKER ---------- */
@@ -1560,6 +1633,7 @@
   border-radius: 7px;
   font-size: 0.88rem;
   background: #fff;
+  text-shadow: none;
 }
 .bp-comp-picker-close {
   background: none;
@@ -1598,12 +1672,12 @@
   transition: border-color 0.15s, background 0.15s;
   gap: 10px;
 }
-.bp-comp-picker-item:hover { border-color: #6c5ce7; background: #ede9ff; }
-.bp-comp-picker-item--zero { opacity: 0.5; cursor: not-allowed; }
-.bp-comp-picker-item-name { font-size: 0.9rem; font-weight: 500; flex: 1; }
-.bp-comp-picker-item-qty { font-size: 0.78rem; white-space: nowrap; color: #27ae60; font-weight: 600; }
-.bp-comp-picker-item-qty--zero { color: #e74c3c; }
-.bp-comp-picker-item-qty--low { color: #e17055; }
+.bp-comp-picker-item:hover { border-color: #6c5ce7; background: #ede9ff; text-shadow: none; }
+.bp-comp-picker-item--zero { opacity: 0.5; cursor: not-allowed; text-shadow: none; }
+.bp-comp-picker-item-name { font-size: 0.9rem; font-weight: 500; flex: 1; text-shadow: none; }
+.bp-comp-picker-item-qty { font-size: 0.78rem; white-space: nowrap; color: #27ae60; font-weight: 600; text-shadow: none; }
+.bp-comp-picker-item-qty--zero { color: #e74c3c; text-shadow: none; }
+.bp-comp-picker-item-qty--low { color: #e17055; text-shadow: none; }
 .bp-comp-picker-new-btn {
   width: 100%;
   padding: 8px 12px;
@@ -1619,6 +1693,7 @@
   justify-content: center;
   gap: 6px;
   transition: background 0.15s;
+  text-shadow: none;
 }
 .bp-comp-picker-new-btn:hover { background: #ede9ff; }
 
@@ -1653,6 +1728,7 @@
   min-width: 80px;
   background: #fff;
   box-sizing: border-box;
+  text-shadow: none;
 }
 .bp-comp-novo-item-row label {
   display: flex;
@@ -1662,6 +1738,7 @@
   gap: 3px;
   flex: 1;
   min-width: 80px;
+  text-shadow: none;
 }
 .bp-comp-novo-item-row label input {
   min-width: unset;
@@ -1681,10 +1758,11 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
+  text-shadow: none;
 }
-.bp-comp-novo-item-actions button:first-child { background: #00b894; color: #fff; }
-.bp-comp-novo-item-actions button:first-child:disabled { background: #b2bec3; cursor: not-allowed; }
-.bp-comp-novo-item-actions button:last-child { background: #dfe6e9; color: #636e72; }
+.bp-comp-novo-item-actions button:first-child { background: #00b894; color: #fff; text-shadow: none; }
+.bp-comp-novo-item-actions button:first-child:disabled { background: #b2bec3; cursor: not-allowed; text-shadow: none; }
+.bp-comp-novo-item-actions button:last-child { background: #dfe6e9; color: #636e72; text-shadow: none; }
 
 /* badge de estoque vinculado */
 .bp-comp-opcao-estoque {

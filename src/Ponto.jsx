@@ -995,9 +995,12 @@ useEffect(() => {
           `https://api-start-pira-qa.vercel.app/api/pdv-gastos-bar/funcionario/${encodeURIComponent(employee.name.trim())}`,
           { params: { startDate: bounds.start.toISOString(), endDate: bounds.end.toISOString() } }
         );
+        // Descontos concedidos na venda não entram na dedução do Ponto (só produtos/vales consumidos pelo funcionário).
+        const totalSemDesconto = (parseFloat(resp.data?.totalProdutos) || 0) + (parseFloat(resp.data?.totalVales) || 0);
+        const itensSemDesconto = Array.isArray(resp.data?.itens) ? resp.data.itens.filter((i) => i.tipo !== "DESCONTO") : [];
         result[employee.id] = {
-          total: parseFloat(resp.data?.total) || 0,
-          itens: Array.isArray(resp.data?.itens) ? resp.data.itens : [],
+          total: totalSemDesconto,
+          itens: itensSemDesconto,
           periodo: bounds,
         };
       } catch (error) {
@@ -1732,7 +1735,8 @@ const handleSaveEdit = () => {
           `https://api-start-pira-qa.vercel.app/api/pdv-gastos-bar/funcionario/${encodeURIComponent(employee.name)}`,
           { params: { startDate: wkStart.toISOString(), endDate: wkEnd.toISOString() } }
         );
-        descontoVale = parseFloat(gbResp.data?.total) || 0;
+        // Descontos concedidos na venda não entram na dedução do Ponto (só produtos/vales consumidos pelo funcionário).
+        descontoVale = (parseFloat(gbResp.data?.totalProdutos) || 0) + (parseFloat(gbResp.data?.totalVales) || 0);
       } catch (error) {
         console.error("Erro ao buscar gastos bar do funcionário:", error);
       }

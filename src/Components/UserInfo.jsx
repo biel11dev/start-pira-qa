@@ -25,7 +25,7 @@ const UserInfo = () => {
     >
       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
         <FaUser style={{ fontSize: "14px" }} />
-        <span style={{ fontWeight: "600", fontSize: "12px" }}>
+        <span style={{ fontWeight: "600", fontSize: "12px", textShadow: "none" }}>
           {auth.userName || "Usuário"}
         </span>
       </div>
@@ -45,6 +45,7 @@ const UserInfo = () => {
           fontSize: "11px",
           fontWeight: "500",
           transition: "all 0.3s ease",
+          textShadow: "none",
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.background = "rgba(255, 255, 255, 0.3)";
@@ -55,7 +56,7 @@ const UserInfo = () => {
           e.currentTarget.style.transform = "scale(1)";
         }}
       >
-        <FaSignOutAlt style={{ fontSize: "11px" }} />
+        <FaSignOutAlt style={{ fontSize: "11px", textShadow: "none" }} />
         Sair
       </button>
     </div>

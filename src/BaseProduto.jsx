@@ -63,12 +63,20 @@ const ProductList = () => {
   const [montagemEdit, setMontagemEdit] = useState({ montagem: false, maxOpcoes: 4, porcoesGratis: 2, valorAdicional: 2.5 });
   const [novaOpcaoComp, setNovaOpcaoComp] = useState(null); // composicaoId com picker aberto
   const [novaOpcaoValorExtra, setNovaOpcaoValorExtra] = useState('0'); // valor adicional ao vincular item existente
+  const [novaOpcaoExclusiva, setNovaOpcaoExclusiva] = useState(false);
+  const [novaOpcaoBase, setNovaOpcaoBase] = useState(false);
+  const [novaOpcaoConsumo, setNovaOpcaoConsumo] = useState('1');
   const [editOpcaoValorId, setEditOpcaoValorId] = useState(null); // opcaoId em edição do valor adicional
   const [editOpcaoValorValue, setEditOpcaoValorValue] = useState('0');
+
+  // ============ VARIAÇÃO DE VENDA (COMBO) ============
+  const [showComboModal, setShowComboModal] = useState(false);
+  const [comboItem, setComboItem] = useState(null);
+  const [comboAtivo, setComboAtivo] = useState(false);
+  const [comboNome, setComboNome] = useState('');
+  const [savingCombo, setSavingCombo] = useState(false);
   const [estoqueList, setEstoqueList] = useState([]);       // todos os itens do estoque
   const [opcaoPicker, setOpcaoPicker] = useState({ search: '' }); // filtro no picker
-  const [showNovoItemForm, setShowNovoItemForm] = useState(false); // form de criar novo item
-  const [novoItemData, setNovoItemData] = useState({ nome: '', unit: 'Unidade', quantity: '1', value: '0', valuecusto: '0', valorExtra: '0' });
   const [savingOpcao, setSavingOpcao] = useState(false);
 
   // ============ ESTOQUE MÍNIMO ============
@@ -642,6 +650,9 @@ const ProductList = () => {
   // estoque em unidade fracional (ex.: Dose), a opção é vinculada à unidade
   // fracional; o desmembramento do estoque ocorre sob demanda na venda.
   const resolveFractionalTarget = (item) => {
+    // Em variações de venda (combo) a unidade escolhida é a que vale:
+    // vincular "Garrafa" deve manter Garrafa, e não virar a Dose irmã.
+    if (composicaoItem?.isCombo) return item;
     const isFractional = (u) => fractionalUnits.includes(u);
     if (isFractional(item.unit)) return item; // já é fracional
     const sibling = estoqueList.find(
@@ -658,11 +669,17 @@ const ProductList = () => {
       await axios.post(`${API_URL}/api/composicoes/${composicaoId}/opcoes`, {
         nome: target.name,
         valorExtra,
-        estoqueId: target.id
+        estoqueId: target.id,
+        exclusivo: novaOpcaoExclusiva,
+        base: novaOpcaoBase,
+        consomeQtd: parseInt(novaOpcaoConsumo, 10) || 1
       });
       const estoqRes = await axios.get(`${API_URL}/api/estoque_prod`);
       setEstoqueList(estoqRes.data.sort((a, b) => a.name.localeCompare(b.name)));
       setNovaOpcaoValorExtra('0');
+      setNovaOpcaoExclusiva(false);
+      setNovaOpcaoBase(false);
+      setNovaOpcaoConsumo('1');
       await refreshComposicoes();
       if (target.id !== estoqueItem.id) {
         setMessage({
@@ -679,39 +696,11 @@ const ProductList = () => {
     setSavingOpcao(false);
   };
 
-  // Cria novo item no estoque e já vincula como opção
-  const handleCriarNovoItemEstoque = async (composicaoId) => {
-    if (!novoItemData.nome.trim() || !novoItemData.unit) return;
-    setSavingOpcao(true);
-    try {
-      const res = await axios.post(`${API_URL}/api/composicoes/${composicaoId}/opcao-estoque`, {
-        nome: novoItemData.nome.trim(),
-        unit: novoItemData.unit,
-        quantity: parseInt(novoItemData.quantity) || 0,
-        value: parseFloat(novoItemData.value) || 0,
-        valuecusto: parseFloat(novoItemData.valuecusto) || 0,
-        valorExtra: parseFloat(novoItemData.valorExtra) || 0
-      });
-      // Atualiza lista de estoque geral
-      const estoqRes = await axios.get(`${API_URL}/api/estoque_prod`);
-      setEstoqueList(estoqRes.data.sort((a, b) => a.name.localeCompare(b.name)));
-      setNovoItemData({ nome: '', unit: 'Unidade', quantity: '1', value: '0', valuecusto: '0', valorExtra: '0' });
-      setShowNovoItemForm(false);
-      await refreshComposicoes();
-    } catch (e) {
-      setMessage({ show: true, text: 'Erro ao criar item no estoque!', type: 'error' });
-      setTimeout(() => setMessage(null), 3000);
-    }
-    setSavingOpcao(false);
-  };
-
   // Fecha o picker de opções
   const closePicker = () => {
     setNovaOpcaoComp(null);
-    setShowNovoItemForm(false);
     setOpcaoPicker({ search: '' });
     setNovaOpcaoValorExtra('0');
-    setNovoItemData({ nome: '', unit: 'Unidade', quantity: '1', value: '0', valuecusto: '0', valorExtra: '0' });
   };
 
   const handleDeleteOpcao = async (opcaoId) => {
@@ -739,6 +728,73 @@ const ProductList = () => {
   const handleEditOpcaoValor = (opcao) => {
     setEditOpcaoValorId(opcao.id);
     setEditOpcaoValorValue(opcao.valorExtra != null ? String(opcao.valorExtra) : '0');
+  };
+
+  // ============ VARIAÇÃO DE VENDA (COMBO) ============
+  const openComboModal = (item) => {
+    setComboItem(item);
+    setComboAtivo(!!item.isCombo);
+    setComboNome(item.comboNome || item.unit || 'Combo');
+    setShowComboModal(true);
+  };
+
+  const handleSalvarCombo = async () => {
+    if (!comboItem) return;
+    setSavingCombo(true);
+    try {
+      await axios.patch(`${API_URL}/api/estoque_prod/${comboItem.id}/combo`, {
+        isCombo: comboAtivo,
+        comboNome: comboAtivo ? (comboNome.trim() || 'Combo') : null
+      });
+      setShowComboModal(false);
+      fetchEstoque();
+      setMessage({
+        show: true,
+        text: comboAtivo
+          ? 'Variação de venda ativada. O disponível passa a ser calculado pelos componentes.'
+          : 'Variação de venda desativada.',
+        type: 'success'
+      });
+      setTimeout(() => setMessage(null), 4000);
+    } catch (e) {
+      setMessage({ show: true, text: e.response?.data?.error || 'Erro ao salvar variação de venda!', type: 'error' });
+      setTimeout(() => setMessage(null), 3000);
+    }
+    setSavingCombo(false);
+  };
+
+  // Alterna as regras de quantidade de um grupo de composição
+  const handleToggleRegraGrupo = async (comp, campo) => {
+    try {
+      await axios.put(`${API_URL}/api/composicoes/${comp.id}`, {
+        nome: comp.nome,
+        descricao: comp.descricao || '',
+        obrigatorio: comp.obrigatorio,
+        multiplo: campo === 'permiteQuantidade' ? true : comp.multiplo,
+        minOpcoes: comp.minOpcoes || 1,
+        maxOpcoes: comp.maxOpcoes || 1,
+        porcoesGratis: comp.porcoesGratis || 0,
+        valorAdicional: comp.valorAdicional || 0,
+        ordem: comp.ordem || 0,
+        permiteQuantidade: campo === 'permiteQuantidade' ? !comp.permiteQuantidade : comp.permiteQuantidade,
+        exigeTotalExato: campo === 'exigeTotalExato' ? !comp.exigeTotalExato : comp.exigeTotalExato
+      });
+      await refreshComposicoes();
+    } catch (e) {
+      setMessage({ show: true, text: 'Erro ao salvar regra do grupo!', type: 'error' });
+      setTimeout(() => setMessage(null), 3000);
+    }
+  };
+
+  // Exclusividade / consumo de quota de uma opção (ex.: Vibe 2L fecha o grupo)
+  const handleSalvarRegraOpcao = async (opcaoId, patch) => {
+    try {
+      await axios.put(`${API_URL}/api/composicoes/opcoes/${opcaoId}`, patch);
+      await refreshComposicoes();
+    } catch (e) {
+      setMessage({ show: true, text: 'Erro ao salvar regra da opção!', type: 'error' });
+      setTimeout(() => setMessage(null), 3000);
+    }
   };
 
   const handleSalvarOpcaoValor = async (opcao) => {
@@ -883,7 +939,7 @@ const ProductList = () => {
             <div className="bp-group-header parent-category-header" onClick={() => toggleGroup(parentName)}>
               <div className="bp-group-title"><span>📁 {parentName}</span></div>
               <div className="bp-group-info">
-                <span className="bp-group-count">{parentData.totalCount} itens</span>
+                <span style={{ textShadow: "none" }}  className="bp-group-count">{parentData.totalCount} itens</span>
                 <button className="bp-expand-btn" onClick={(e) => { e.stopPropagation(); toggleGroup(parentName); }}>
                   {expandedGroups[parentName] ? "Ocultar" : "Expandir"}
                 </button>
@@ -901,7 +957,7 @@ const ProductList = () => {
                         <span>{subName === '_direct' ? '📄 Produtos diretos' : `📄 ${subName}`}</span>
                       </div>
                       <div className="bp-group-info">
-                        <span className="bp-group-count">{subItems.length} itens</span>
+                        <span  style={{ textShadow: "none" }} className="bp-group-count">{subItems.length} itens</span>
                         <button className="bp-expand-btn" onClick={(e) => { e.stopPropagation(); toggleGroup(`${parentName}-${subName}`); }}>
                           {expandedGroups[`${parentName}-${subName}`] ? "Ocultar" : "Expandir"}
                         </button>
@@ -1003,6 +1059,13 @@ const ProductList = () => {
                                     title={minimoMap[item.id] ? `Mínimo: ${minimoMap[item.id].quantidadeMinima}` : "Definir estoque mínimo"}
                                   >
                                     <FaBell />
+                                  </button>
+                                  <button
+                                    className={`bp-btn-combo ${item.isCombo ? 'bp-btn-combo--ativo' : ''}`}
+                                    onClick={() => openComboModal(item)}
+                                    title={item.isCombo ? `Variação de venda: ${item.comboNome || 'Combo'}` : 'Definir como variação de venda (combo)'}
+                                  >
+                                    <FaBoxOpen />
                                   </button>
                                   <button
                                     className={`bp-btn-composicao ${item.composicoes?.length ? 'bp-btn-composicao--ativo' : ''}`}
@@ -1351,6 +1414,45 @@ const ProductList = () => {
       )}
 
       {/* ============ MODAL COMPOSIÇÃO ============ */}
+      {showComboModal && comboItem && (
+        <div className="bp-modal">
+          <div className="bp-modal-content">
+            <h3 className="bp-modal-title"><FaBoxOpen /> Variação de Venda</h3>
+            <p className="bp-combo-sub">{comboItem.name} — {comboItem.unit}</p>
+
+            <label className="bp-combo-check">
+              <input type="checkbox" checked={comboAtivo} onChange={e => setComboAtivo(e.target.checked)} />
+              &nbsp;Esta unidade é uma variação de venda (conjunto de produtos)
+            </label>
+
+            <p className="bp-combo-help">
+              Ative quando a "unidade" na verdade for um conjunto vendido junto (ex.: Combo).
+              O estoque deixa de ser próprio e passa a ser calculado pelos componentes:
+              a menor razão entre o estoque de cada grupo obrigatório e a quota exigida por combo.
+            </p>
+
+            {comboAtivo && (
+              <>
+                <label className="bp-combo-label">Nome da variação
+                  <input type="text" value={comboNome} onChange={e => setComboNome(e.target.value)} placeholder="Ex.: Combo" />
+                </label>
+                <p className="bp-combo-help">
+                  Configure os grupos e as regras no botão de composição: <strong>Qtd por opção</strong> (3x1, 2x2, 4),
+                  <strong> Exigir N exatos</strong> e opções <strong>exclusivas</strong> (ex.: 2L bloqueia as latas).
+                </p>
+              </>
+            )}
+
+            <div className="modal-buttons">
+              <button onClick={handleSalvarCombo} disabled={savingCombo}>
+                {savingCombo ? <FaSpinner className="bp-loading" /> : <FaCheck />} Salvar
+              </button>
+              <button onClick={() => setShowComboModal(false)}><FaTimes /> Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showComposicaoModal && composicaoItem && (
         <div className="bp-modal">
           <div className="bp-modal-content bp-modal-composicao">
@@ -1373,6 +1475,20 @@ const ProductList = () => {
                           {comp.multiplo && (comp.valorAdicional > 0
                             ? <span className="bp-comp-tag bp-comp-tag--multi">Montagem • até {comp.maxOpcoes} • {comp.porcoesGratis} grátis • +R$ {Number(comp.valorAdicional).toFixed(2)}</span>
                             : <span className="bp-comp-tag bp-comp-tag--multi">Múltipla (até {comp.maxOpcoes})</span>)}
+                          <button
+                            className={`bp-comp-tag bp-comp-tag--regra ${comp.permiteQuantidade ? 'bp-comp-tag--regra-on' : ''}`}
+                            onClick={() => handleToggleRegraGrupo(comp, 'permiteQuantidade')}
+                            title="Permite escolher a quantidade de cada opção no PDV (ex.: 2x Coco + 2x Maracujá)"
+                          >
+                            Qtd por opção
+                          </button>
+                          <button
+                            className={`bp-comp-tag bp-comp-tag--regra ${comp.exigeTotalExato ? 'bp-comp-tag--regra-on' : ''}`}
+                            onClick={() => handleToggleRegraGrupo(comp, 'exigeTotalExato')}
+                            title={`Exige fechar exatamente ${comp.maxOpcoes} itens`}
+                          >
+                            Exigir {comp.maxOpcoes} exatos
+                          </button>
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: '6px' }}>
@@ -1411,6 +1527,20 @@ const ProductList = () => {
                               </span>
                             )}
                             <div className="bp-comp-opcao-actions">
+                              <button
+                                className={`bp-comp-opcao-toggle ${opcao.base ? 'bp-comp-opcao-toggle--base' : ''}`}
+                                onClick={() => handleSalvarRegraOpcao(opcao.id, { base: !opcao.base })}
+                                title={opcao.base ? 'Item base: já vem incluso e não pode ser removido no PDV' : 'Marcar como item base da variação'}
+                              >
+                                {opcao.base ? '★' : '☆'}
+                              </button>
+                              <button
+                                className={`bp-comp-opcao-toggle ${opcao.exclusivo ? 'bp-comp-opcao-toggle--ativo' : ''}`}
+                                onClick={() => handleSalvarRegraOpcao(opcao.id, { exclusivo: !opcao.exclusivo })}
+                                title={opcao.exclusivo ? 'Exclusiva: bloqueia as demais opções do grupo' : 'Tornar exclusiva (bloqueia as demais do grupo)'}
+                              >
+                                {opcao.exclusivo ? '🔒' : '🔓'}
+                              </button>
                               <button className="bp-comp-opcao-toggle" onClick={() => editOpcaoValorId === opcao.id ? setEditOpcaoValorId(null) : handleEditOpcaoValor(opcao)} title="Definir valor adicional deste componente"><FaPen /></button>
                               <button className={`bp-comp-opcao-toggle ${opcao.disponivel ? 'bp-comp-opcao-toggle--ativo' : ''}`} onClick={() => handleToggleOpcao(opcao.id, opcao.disponivel)} title={opcao.disponivel ? 'Desativar' : 'Ativar'}>{opcao.disponivel ? <FaCheck /> : '○'}</button>
                               <button className="bp-comp-opcao-delete" onClick={() => handleDeleteOpcao(opcao.id)}><FaTimes /></button>
@@ -1419,6 +1549,7 @@ const ProductList = () => {
                           {editOpcaoValorId === opcao.id && (
                             <div className="bp-comp-opcao-edit-valor">
                               <label>Valor adicional (R$):&nbsp;<input type="number" min="0" step="0.01" value={editOpcaoValorValue} onChange={e => setEditOpcaoValorValue(e.target.value)} autoFocus /></label>
+                              <label>Ocupa da quota:&nbsp;<input type="number" min="1" step="1" value={opcao.consomeQtd || 1} onChange={e => handleSalvarRegraOpcao(opcao.id, { consomeQtd: parseInt(e.target.value, 10) || 1 })} /></label>
                               <button onClick={() => handleSalvarOpcaoValor(opcao)}><FaCheck /> Salvar</button>
                               <button onClick={() => setEditOpcaoValorId(null)}><FaTimes /> Cancelar</button>
                             </div>
@@ -1441,6 +1572,15 @@ const ProductList = () => {
                           <div className="bp-comp-picker-valor-extra">
                             <label>Valor adicional deste componente (R$):&nbsp;
                               <input type="number" min="0" step="0.01" value={novaOpcaoValorExtra} onChange={e => setNovaOpcaoValorExtra(e.target.value)} />
+                            </label>
+                            <label title="Ex.: Vibe 2L ocupa 4 e bloqueia as latas">
+                              <input type="checkbox" checked={novaOpcaoExclusiva} onChange={e => setNovaOpcaoExclusiva(e.target.checked)} /> Exclusiva (fecha o grupo)
+                            </label>
+                            <label title="Componente fixo: já vem selecionado no PDV e não pode ser removido">
+                              <input type="checkbox" checked={novaOpcaoBase} onChange={e => setNovaOpcaoBase(e.target.checked)} /> Item base (já incluso)
+                            </label>
+                            <label>Ocupa da quota:&nbsp;
+                              <input type="number" min="1" step="1" value={novaOpcaoConsumo} onChange={e => setNovaOpcaoConsumo(e.target.value)} />
                             </label>
                           </div>
                           <div className="bp-comp-picker-list">
@@ -1471,36 +1611,11 @@ const ProductList = () => {
                               ));
                             })()}
                           </div>
-                          {!showNovoItemForm ? (
-                            <button className="bp-comp-picker-new-btn" onClick={() => { setShowNovoItemForm(true); setNovoItemData(prev => ({ ...prev, nome: opcaoPicker.search })); }}>
-                              <FaPlus /> Criar novo item no estoque
-                            </button>
-                          ) : (
-                            <div className="bp-comp-novo-item-form">
-                              <div className="bp-comp-novo-item-title"><FaBoxOpen /> Novo item no estoque</div>
-                              <div className="bp-comp-novo-item-row">
-                                <input type="text" placeholder="Nome do item *" value={novoItemData.nome} onChange={e => setNovoItemData(p => ({ ...p, nome: e.target.value }))} />
-                                <select value={novoItemData.unit} onChange={e => setNovoItemData(p => ({ ...p, unit: e.target.value }))}>
-                                  {['Unidade', 'Caixa', 'Fardo', 'Garrafa', 'Litro', 'Kg', 'Grama', 'Pacote', 'Dose'].map(u => <option key={u}>{u}</option>)}
-                                </select>
-                              </div>
-                              <div className="bp-comp-novo-item-row">
-                                <label>Qtd inicial<input type="number" min="0" value={novoItemData.quantity} onChange={e => setNovoItemData(p => ({ ...p, quantity: e.target.value }))} /></label>
-                                <label>Valor venda (R$)<input type="number" step="0.01" min="0" value={novoItemData.value} onChange={e => setNovoItemData(p => ({ ...p, value: e.target.value }))} /></label>
-                                <label>Custo (R$)<input type="number" step="0.01" min="0" value={novoItemData.valuecusto} onChange={e => setNovoItemData(p => ({ ...p, valuecusto: e.target.value }))} /></label>
-                                <label>Valor extra na composição (R$)<input type="number" step="0.01" min="0" value={novoItemData.valorExtra} onChange={e => setNovoItemData(p => ({ ...p, valorExtra: e.target.value }))} /></label>
-                              </div>
-                              <div className="bp-comp-novo-item-actions">
-                                <button onClick={() => handleCriarNovoItemEstoque(comp.id)} disabled={savingOpcao || !novoItemData.nome.trim()}>
-                                  {savingOpcao ? <FaSpinner className="bp-loading" /> : <FaCheck />} Salvar e adicionar
-                                </button>
-                                <button onClick={() => setShowNovoItemForm(false)}><FaTimes /> Cancelar</button>
-                              </div>
-                            </div>
-                          )}
                         </div>
                       ) : (
-                        <button className="bp-comp-add-opcao-btn" onClick={() => { setNovaOpcaoComp(comp.id); setOpcaoPicker({ search: '' }); setShowNovoItemForm(false); setNovaOpcaoValorExtra('0'); }}><FaPlus /> Adicionar opção</button>
+                        <button className="bp-comp-add-opcao-btn" onClick={() => setNovaOpcaoComp(comp.id)}>
+                          <FaPlus /> Adicionar Opção
+                        </button>
                       )}
                     </div>
                   </div>

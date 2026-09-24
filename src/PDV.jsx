@@ -296,10 +296,10 @@ const PDV = () => {
       .then((response) => {
         // Lista completa (todas as unidades) usada para checar conversão de composição.
         setAllEstoque(response.data || []);
-        // Excluir itens que são apenas componentes de composição (vinculados via composicaoOpcoes)
-        // e unidades ocultas no PDV por configuração do produto (product.pdvHiddenUnits)
+        // Um item pode ser componente de combo e continuar vendível avulso —
+        // quem decide é o `mostrarPdv` do cadastro e as unidades ocultas do produto.
         const vendiveis = response.data.filter(p =>
-          !(p._count?.composicaoOpcoes > 0) &&
+          p.mostrarPdv !== false &&
           !((p.product?.pdvHiddenUnits || []).includes(p.unit))
         );
         setProducts(vendiveis);
@@ -1723,7 +1723,7 @@ const PDV = () => {
     // convertível (o servidor faz o desmembramento automático na venda).
     if (!product || (product.quantity <= 0 && !hasConversionSibling(product))) return;
     if (product.composicoes && product.composicoes.length > 0) {
-      setCompSelections({});
+      setCompSelections(selecoesIniciais(product));
       setCompModalProduct(product);
     } else {
       addToCart(product);
@@ -1747,28 +1747,28 @@ const PDV = () => {
 
     const comps = compModalProduct.composicoes || [];
     for (const comp of comps) {
-      if (comp.obrigatorio) {
-        const sel = compSelections[comp.id] || [];
-        if (sel.length < 1) {
-          alert(`Selecione uma opção para: "${comp.nome}"`);
-          return;
-        }
+      if (comp.obrigatorio && !grupoCompleto(comp)) {
+        alert(
+          comp.exigeTotalExato
+            ? `Selecione ${comp.maxOpcoes} itens em: "${comp.nome}"`
+            : `Selecione uma opção para: "${comp.nome}"`
+        );
+        return;
       }
     }
     // Calcula preço com extras
     let extraTotal = 0;
     const labelParts = [];
     for (const comp of comps) {
-      const sel = compSelections[comp.id] || [];
-      const selectedOpcoes = comp.opcoes.filter(o => sel.includes(o.id));
-      const montagem = comp.multiplo && (comp.valorAdicional || 0) > 0;
-      if (montagem) {
-        const pagas = Math.max(0, selectedOpcoes.length - (comp.porcoesGratis || 0));
-        extraTotal += pagas * (comp.valorAdicional || 0);
-      } else {
-        selectedOpcoes.forEach(o => { extraTotal += o.valorExtra || 0; });
+      extraTotal += extraDoGrupo(comp);
+      const sel = selecoesDoGrupo(comp.id);
+      if (sel.length > 0) {
+        const nomes = sel.map(s => {
+          const opcao = (comp.opcoes || []).find(o => o.id === s.id);
+          return s.qtd > 1 ? `${s.qtd}x ${opcao?.nome}` : opcao?.nome;
+        });
+        labelParts.push(`${comp.nome}: ${nomes.join(', ')}`);
       }
-      if (selectedOpcoes.length > 0) labelParts.push(`${comp.nome}: ${selectedOpcoes.map(o => o.nome).join(', ')}`);
     }
     const finalPrice = compModalProduct.value + extraTotal;
     const composicaoLabel = labelParts.join(' | ');
@@ -1809,16 +1809,111 @@ const PDV = () => {
     setCompModalProduct(null);
   };
 
-  const toggleCompOpcao = (composicaoId, opcaoId, multiplo, maxOpcoes) => {
-    setCompSelections(prev => {
-      const current = prev[composicaoId] || [];
-      if (current.includes(opcaoId)) {
-        return { ...prev, [composicaoId]: current.filter(id => id !== opcaoId) };
-      }
-      if (!multiplo) return { ...prev, [composicaoId]: [opcaoId] };
-      if (current.length >= maxOpcoes) return { ...prev, [composicaoId]: [...current.slice(1), opcaoId] };
-      return { ...prev, [composicaoId]: [...current, opcaoId] };
+  // Seleções de composição: { [composicaoId]: [{ id, qtd }] }
+  const selecoesDoGrupo = (composicaoId) => compSelections[composicaoId] || [];
+
+  const qtdSelecionada = (composicaoId, opcaoId) =>
+    selecoesDoGrupo(composicaoId).find(s => s.id === opcaoId)?.qtd || 0;
+
+  // Quota do grupo já consumida (uma opção exclusiva consome a quota inteira).
+  const quotaUsada = (comp) =>
+    selecoesDoGrupo(comp.id).reduce((soma, s) => {
+      const opcao = (comp.opcoes || []).find(o => o.id === s.id);
+      return soma + s.qtd * Math.max(1, opcao?.consomeQtd || 1);
+    }, 0);
+
+  // Uma opção fica bloqueada quando conflita com o que já foi escolhido:
+  // exclusiva com algo selecionado, ou comum com uma exclusiva ativa.
+  const opcaoBloqueada = (comp, opcao) => {
+    const sel = selecoesDoGrupo(comp.id);
+    if (sel.length === 0) return false;
+    const temExclusivaAtiva = sel.some(s => (comp.opcoes || []).find(o => o.id === s.id)?.exclusivo);
+    if (temExclusivaAtiva) return !sel.some(s => s.id === opcao.id);
+    return !!opcao.exclusivo;
+  };
+
+  // Itens base ocupam quota mas não exigem ação do operador.
+  const grupoSoTemBase = (comp) =>
+    (comp.opcoes || []).filter(o => o.disponivel).every(o => o.base);
+
+  // Componentes marcados como base já entram selecionados e não podem ser removidos.
+  const selecoesIniciais = (produto) => {
+    const iniciais = {};
+    (produto.composicoes || []).forEach(comp => {
+      const bases = (comp.opcoes || []).filter(o => o.base && o.disponivel);
+      if (bases.length > 0) iniciais[comp.id] = bases.map(o => ({ id: o.id, qtd: 1 }));
     });
+    return iniciais;
+  };
+
+  const alterarQtdOpcao = (comp, opcao, delta) => {
+    if (opcao.base && delta < 0) return; // item base do combo não pode ser removido
+    setCompSelections(prev => {
+      const atual = prev[comp.id] || [];
+      const existente = atual.find(s => s.id === opcao.id);
+      const novaQtd = (existente?.qtd || 0) + delta;
+
+      if (novaQtd <= 0) return { ...prev, [comp.id]: atual.filter(s => s.id !== opcao.id) };
+      // Opção exclusiva (ex.: Vibe 2L) substitui toda a seleção do grupo.
+      if (opcao.exclusivo) return { ...prev, [comp.id]: [{ id: opcao.id, qtd: 1 }] };
+
+      const consumo = Math.max(1, opcao.consomeQtd || 1);
+      const usadaSemEsta = atual
+        .filter(s => s.id !== opcao.id)
+        .reduce((soma, s) => {
+          const o = (comp.opcoes || []).find(x => x.id === s.id);
+          return soma + s.qtd * Math.max(1, o?.consomeQtd || 1);
+        }, 0);
+      if (usadaSemEsta + novaQtd * consumo > (comp.maxOpcoes || 1)) return prev;
+
+      return {
+        ...prev,
+        [comp.id]: existente
+          ? atual.map(s => (s.id === opcao.id ? { ...s, qtd: novaQtd } : s))
+          : [...atual, { id: opcao.id, qtd: novaQtd }],
+      };
+    });
+  };
+
+  const toggleCompOpcao = (comp, opcao) => {
+    if (opcao.base) return; // item base do combo é fixo
+    setCompSelections(prev => {
+      const atual = prev[comp.id] || [];
+      if (atual.some(s => s.id === opcao.id)) {
+        return { ...prev, [comp.id]: atual.filter(s => s.id !== opcao.id) };
+      }
+      const nova = { id: opcao.id, qtd: 1 };
+      if (!comp.multiplo || opcao.exclusivo) return { ...prev, [comp.id]: [nova] };
+      if (quotaUsada(comp) + Math.max(1, opcao.consomeQtd || 1) > (comp.maxOpcoes || 1)) {
+        return { ...prev, [comp.id]: [...atual.slice(1), nova] };
+      }
+      return { ...prev, [comp.id]: [...atual, nova] };
+    });
+  };
+
+  // Um grupo está completo quando atende o mínimo/quota exigida
+  const grupoCompleto = (comp) => {
+    const usada = quotaUsada(comp);
+    if (grupoSoTemBase(comp)) return true;
+    if (usada === 0) return false;
+    if (comp.exigeTotalExato) return usada >= (comp.maxOpcoes || 1);
+    const montagem = comp.multiplo && (comp.valorAdicional || 0) > 0;
+    if (montagem) return usada >= (comp.minOpcoes || 1);
+    return comp.multiplo ? usada >= (comp.maxOpcoes || 1) : usada >= 1;
+  };
+
+  // Valor extra do grupo conforme a regra (montagem por porção ou valor por componente)
+  const extraDoGrupo = (comp) => {
+    const sel = selecoesDoGrupo(comp.id);
+    const totalPorcoes = sel.reduce((s, x) => s + x.qtd, 0);
+    if (comp.multiplo && (comp.valorAdicional || 0) > 0) {
+      const pagas = Math.max(0, totalPorcoes - (comp.porcoesGratis || 0));
+      return pagas * (comp.valorAdicional || 0);
+    }
+    return sel.reduce((soma, s) => {
+      const opcao = (comp.opcoes || []).find(o => o.id === s.id);
+      return soma + (opcao?.valorExtra || 0) * s.qtd;
+    }, 0);
   };
 
   // Verifica se um produto tem irmão com unidade diferente no mesmo productId
@@ -5181,45 +5276,68 @@ const PDV = () => {
             <div className="pdv-comp-modal-body">
               {(() => {
                 const composicoes = compModalProduct.composicoes || [];
-                // Considera um grupo "completo" apenas quando os requisitos do
-                // campo são atendidos. Para grupo múltiplo, só é completo ao
-                // atingir o máximo de opções (maxOpcoes); para simples, 1 opção.
-                const compCompleta = (comp) => {
-                  const qtd = (compSelections[comp.id] || []).length;
-                  const montagem = comp.multiplo && (comp.valorAdicional || 0) > 0;
-                  if (montagem) return qtd >= (comp.minOpcoes || 1);
-                  return comp.multiplo ? qtd >= (comp.maxOpcoes || 1) : qtd >= 1;
-                };
-                // Encontra o índice do primeiro grupo ainda não completo
-                const firstEmptyIdx = composicoes.findIndex(comp => !compCompleta(comp));
-                // Mostra até o primeiro não completo (inclusive); se todos completos, mostra tudo
+                // Mostra até o primeiro grupo ainda não completo (divulgação progressiva)
+                const firstEmptyIdx = composicoes.findIndex(comp => !grupoCompleto(comp));
                 const visibleComps = firstEmptyIdx === -1 ? composicoes : composicoes.slice(0, firstEmptyIdx + 1);
                 return visibleComps.map((comp, idx) => {
                   const isActive = idx === (firstEmptyIdx === -1 ? composicoes.length - 1 : firstEmptyIdx);
+                  const usada = quotaUsada(comp);
+                  const max = comp.maxOpcoes || 1;
                   return (
                 <div key={comp.id} className={`pdv-comp-group ${isActive ? 'pdv-comp-group--active' : 'pdv-comp-group--done'}`}>
                   <div className="pdv-comp-group-title">
                     {comp.nome}
                     {comp.obrigatorio && <span className="pdv-comp-required">*obrigatório</span>}
-                    {comp.multiplo && ((comp.valorAdicional || 0) > 0
-                      ? <span className="pdv-comp-multi">{(compSelections[comp.id] || []).length}/{comp.maxOpcoes} • {comp.porcoesGratis} grátis • +{formatCurrency(comp.valorAdicional)}</span>
-                      : <span className="pdv-comp-multi">até {comp.maxOpcoes}</span>)}
+                    {comp.permiteQuantidade
+                      ? <span className="pdv-comp-multi">
+                          {usada}/{max}{comp.exigeTotalExato ? ' (exato)' : ''}
+                          {(comp.valorAdicional || 0) > 0 ? ` • ${comp.porcoesGratis} grátis • +${formatCurrency(comp.valorAdicional)}` : ''}
+                        </span>
+                      : comp.multiplo && ((comp.valorAdicional || 0) > 0
+                        ? <span className="pdv-comp-multi">{usada}/{max} • {comp.porcoesGratis} grátis • +{formatCurrency(comp.valorAdicional)}</span>
+                        : <span className="pdv-comp-multi">até {max}</span>)}
                   </div>
                   <div className="pdv-comp-options">
                     {comp.opcoes.filter(o => o.disponivel).map(opcao => {
-                      const selected = (compSelections[comp.id] || []).includes(opcao.id);
+                      const qtd = qtdSelecionada(comp.id, opcao.id);
                       const stockQty = opcao.estoque?.quantity ?? null;
                       const esgotado = stockQty !== null && stockQty <= 0 && !temIrmaoConvertivelOpcao(opcao.estoque);
                       const pouco = stockQty !== null && stockQty > 0 && stockQty <= 3;
+                      const bloqueada = opcaoBloqueada(comp, opcao);
+                      const consumo = Math.max(1, opcao.consomeQtd || 1);
+                      const semQuota = usada + consumo > max;
+
+                      if (comp.permiteQuantidade && !opcao.exclusivo) {
+                        return (
+                          <div key={opcao.id} className={`pdv-comp-qtd ${qtd > 0 ? 'pdv-comp-qtd--selected' : ''} ${esgotado || bloqueada ? 'pdv-comp-qtd--out' : ''}`}>
+                            <span className="pdv-comp-qtd-name">
+                              {opcao.nome}
+                              {opcao.base && <span className="pdv-comp-base">incluso</span>}
+                              {opcao.valorExtra > 0 && <span className="pdv-comp-option-extra"> +{formatCurrency(opcao.valorExtra)}</span>}
+                              {esgotado && <span className="pdv-comp-option-stock pdv-comp-option-stock--out">Esgotado</span>}
+                              {pouco && <span className="pdv-comp-option-stock pdv-comp-option-stock--low">⚠ {stockQty} restantes</span>}
+                            </span>
+                            <div className="pdv-comp-qtd-controls">
+                              <button type="button" onClick={() => alterarQtdOpcao(comp, opcao, -1)} disabled={qtd <= 0 || opcao.base}>−</button>
+                              <span className="pdv-comp-qtd-value">{qtd}</span>
+                              <button type="button" onClick={() => alterarQtdOpcao(comp, opcao, 1)} disabled={esgotado || bloqueada || semQuota}>+</button>
+                            </div>
+                          </div>
+                        );
+                      }
+
                       return (
                         <button
                           key={opcao.id}
-                          className={`pdv-comp-option ${selected ? 'pdv-comp-option--selected' : ''} ${esgotado ? 'pdv-comp-option--out' : ''}`}
-                          onClick={() => !esgotado && toggleCompOpcao(comp.id, opcao.id, comp.multiplo, comp.maxOpcoes)}
-                          disabled={esgotado}
-                          title={esgotado ? 'Esgotado' : pouco ? `Atenção: apenas ${stockQty} em estoque` : ''}
+                          className={`pdv-comp-option ${qtd > 0 ? 'pdv-comp-option--selected' : ''} ${esgotado || bloqueada ? 'pdv-comp-option--out' : ''}`}
+                          onClick={() => !esgotado && !bloqueada && toggleCompOpcao(comp, opcao)}
+                          disabled={esgotado || bloqueada || opcao.base}
+                          title={opcao.base ? 'Item base do combo (sempre incluso)' : esgotado ? 'Esgotado' : bloqueada ? 'Indisponível com a seleção atual' : pouco ? `Atenção: apenas ${stockQty} em estoque` : ''}
                         >
-                          <span className="pdv-comp-option-name">{opcao.nome}{esgotado ? ' ✕' : ''}</span>
+                          <span className="pdv-comp-option-name">
+                            {opcao.nome}{opcao.exclusivo && consumo > 1 ? ` (ocupa ${consumo})` : ''}{esgotado ? ' ✕' : ''}
+                          </span>
+                          {opcao.base && <span className="pdv-comp-base">incluso</span>}
                           {opcao.valorExtra > 0 && <span className="pdv-comp-option-extra">+{formatCurrency(opcao.valorExtra)}</span>}
                           {esgotado && <span className="pdv-comp-option-stock pdv-comp-option-stock--out">Esgotado</span>}
                           {pouco && <span className="pdv-comp-option-stock pdv-comp-option-stock--low">⚠ {stockQty} restantes</span>}
@@ -5234,15 +5352,7 @@ const PDV = () => {
             </div>
             <div className="pdv-comp-modal-footer">
               <span className="pdv-comp-modal-price">
-                {formatCurrency(compModalProduct.value + (compModalProduct.composicoes || []).reduce((sum, comp) => {
-                  const sel = compSelections[comp.id] || [];
-                  const selectedOpcoes = comp.opcoes.filter(o => sel.includes(o.id));
-                  if (comp.multiplo && (comp.valorAdicional || 0) > 0) {
-                    const pagas = Math.max(0, selectedOpcoes.length - (comp.porcoesGratis || 0));
-                    return sum + pagas * (comp.valorAdicional || 0);
-                  }
-                  return sum + selectedOpcoes.reduce((s, o) => s + (o.valorExtra || 0), 0);
-                }, 0))}
+                {formatCurrency(compModalProduct.value + (compModalProduct.composicoes || []).reduce((sum, comp) => sum + extraDoGrupo(comp), 0))}
               </span>
               <button className="pdv-comp-confirm-btn" onClick={confirmComposicao}>Adicionar ao Carrinho</button>
             </div>
