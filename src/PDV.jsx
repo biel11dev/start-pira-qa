@@ -1,5 +1,5 @@
 import axios from "axios";
-import React, { useContext, useEffect, useRef, useState } from "react";
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { FaSpinner, FaPlus, FaCashRegister, FaCog, FaTrash, FaHandHoldingUsd, FaTrophy, FaSlidersH, FaCamera, FaCheck, FaArrowRight, FaArrowLeft, FaImage, FaTag, FaLock, FaUserPlus, FaSearch, FaEye, FaTimes, FaMoneyBillWave, FaExclamationTriangle, FaHistory, FaDoorOpen, FaDoorClosed, FaArrowDown, FaArrowUp, FaGlassWhiskey, FaPercent, FaUserTie, FaBoxOpen, FaLayerGroup, FaWhatsapp, FaShoppingBag, FaMapMarkerAlt, FaPhone, FaClock, FaQrcode, FaCopy } from "react-icons/fa";
 import "./PDV.css";
 import Message from "./Message";
@@ -184,6 +184,9 @@ const PDV = () => {
   const [gastosBarResumo, setGastosBarResumo] = useState([]);
   const [isLoadingGastosBar, setIsLoadingGastosBar] = useState(false);
   const [gastosBarSubView, setGastosBarSubView] = useState("semanas"); // "semanas" ou "funcionarios"
+  const [gastosBarFiltroDataInicio, setGastosBarFiltroDataInicio] = useState("");
+  const [gastosBarFiltroDataFim, setGastosBarFiltroDataFim] = useState("");
+  const [gastosBarFiltroTipo, setGastosBarFiltroTipo] = useState("todos"); // todos | PRODUTO | VALE | DESCONTO
 
   // Seleção de unidade por grupo de produto (productId → estoqueId selecionado)
   const [selectedProductUnits, setSelectedProductUnits] = useState({});
@@ -1372,6 +1375,53 @@ const PDV = () => {
     }
   };
 
+  const gastosBarLimparFiltros = () => {
+    setGastosBarFiltroDataInicio("");
+    setGastosBarFiltroDataFim("");
+    setGastosBarFiltroTipo("todos");
+  };
+
+  const gastosBarDentroDoPeriodo = (createdAt) => {
+    if (!gastosBarFiltroDataInicio && !gastosBarFiltroDataFim) return true;
+    const data = new Date(createdAt);
+    if (gastosBarFiltroDataInicio && data < new Date(`${gastosBarFiltroDataInicio}T00:00:00`)) return false;
+    if (gastosBarFiltroDataFim && data > new Date(`${gastosBarFiltroDataFim}T23:59:59`)) return false;
+    return true;
+  };
+
+  // Aplica os filtros de data e tipo sobre as semanas, recalculando os totais exibidos
+  const gastosBarSemanasFiltradas = useMemo(() => {
+    const mostrarProduto = gastosBarFiltroTipo === "todos" || gastosBarFiltroTipo === "PRODUTO";
+    const mostrarVale = gastosBarFiltroTipo === "todos" || gastosBarFiltroTipo === "VALE";
+    const mostrarDesconto = gastosBarFiltroTipo === "todos" || gastosBarFiltroTipo === "DESCONTO";
+    return gastosBarSemanas
+      .map((semana) => {
+        const produtos = mostrarProduto ? (semana.produtos || []).filter((g) => gastosBarDentroDoPeriodo(g.createdAt)) : [];
+        const vales = mostrarVale ? (semana.vales || []).filter((g) => gastosBarDentroDoPeriodo(g.createdAt)) : [];
+        const descontos = mostrarDesconto ? (semana.descontos || []).filter((g) => gastosBarDentroDoPeriodo(g.createdAt)) : [];
+        const totalProdutos = produtos.reduce((s, g) => s + (g.valorTotal || 0), 0);
+        const totalVales = vales.reduce((s, g) => s + (g.valorTotal || 0), 0);
+        const totalDescontos = descontos.reduce((s, g) => s + (g.valorTotal || 0), 0);
+        return { ...semana, produtos, vales, descontos, totalProdutos, totalVales, totalDescontos, total: totalProdutos + totalVales + totalDescontos };
+      })
+      .filter((semana) => semana.produtos.length + semana.vales.length + semana.descontos.length > 0);
+  }, [gastosBarSemanas, gastosBarFiltroDataInicio, gastosBarFiltroDataFim, gastosBarFiltroTipo]);
+
+  // Aplica os filtros de data e tipo sobre o resumo por funcionário, recalculando os totais exibidos
+  const gastosBarResumoFiltrado = useMemo(() => {
+    return gastosBarResumo
+      .map((func) => {
+        const itens = (func.itens || []).filter(
+          (g) => (gastosBarFiltroTipo === "todos" || g.tipo === gastosBarFiltroTipo) && gastosBarDentroDoPeriodo(g.createdAt)
+        );
+        const totalProdutos = itens.filter((g) => g.tipo === "PRODUTO").reduce((s, g) => s + (g.valorTotal || 0), 0);
+        const totalVales = itens.filter((g) => g.tipo === "VALE").reduce((s, g) => s + (g.valorTotal || 0), 0);
+        const totalDescontos = itens.filter((g) => g.tipo === "DESCONTO").reduce((s, g) => s + (g.valorTotal || 0), 0);
+        return { ...func, itens, totalProdutos, totalVales, totalDescontos, total: totalProdutos + totalVales + totalDescontos };
+      })
+      .filter((func) => func.itens.length > 0);
+  }, [gastosBarResumo, gastosBarFiltroDataInicio, gastosBarFiltroDataFim, gastosBarFiltroTipo]);
+
   const registrarGastosBarPorVale = async (itensVenda, totalVenda, pagamentosSplit) => {
     const valorVale = pagamentosSplit?.length
       ? parseFloat((pagamentosSplit.find((s) => s.forma === "vale") || {}).valor || 0)
@@ -2336,9 +2386,11 @@ const PDV = () => {
         <button className={`pdv-tab ${activeTab === "caixa" ? "active" : ""}`} onClick={() => setActiveTab("caixa")}>
           <FaMoneyBillWave /> Caixa {caixaAlerta && <span className="pdv-caixa-alerta-badge">!</span>}
         </button>
-        <button className={`pdv-tab ${activeTab === "config" ? "active" : ""}`} onClick={() => setActiveTab("config")}>
-          <FaSlidersH /> Config. Venda
-        </button>
+        {auth?.permissions?.acessos === true && (
+          <button className={`pdv-tab ${activeTab === "config" ? "active" : ""}`} onClick={() => setActiveTab("config")}>
+            <FaSlidersH /> Config. Venda
+          </button>
+        )}
         <button className={`pdv-tab ${activeTab === "pedidos" ? "active" : ""}`} onClick={() => { setActiveTab("pedidos"); if (pedidosSubTab === "online") fetchPedidosOnline(); else fetchUltimosPedidos(); }}>
           <FaHistory /> Pedidos
         </button>
@@ -3743,6 +3795,34 @@ const PDV = () => {
               </div>
               <p className="pdv-gastos-bar-note">Somente visualização. Lançamentos são gerados automaticamente por vendas com pagamento em Vale e por vales em dinheiro pegos por funcionários no PDV.</p>
 
+              <div className="pdv-gastos-bar-filtros">
+                <div className="pdv-gastos-bar-filtro-grupo">
+                  <label>De</label>
+                  <input type="date" value={gastosBarFiltroDataInicio} onChange={(e) => setGastosBarFiltroDataInicio(e.target.value)} />
+                </div>
+                <div className="pdv-gastos-bar-filtro-grupo">
+                  <label>Até</label>
+                  <input type="date" value={gastosBarFiltroDataFim} onChange={(e) => setGastosBarFiltroDataFim(e.target.value)} />
+                </div>
+                <div className="pdv-gastos-bar-filtro-tipos">
+                  {[
+                    { valor: "todos", label: "Todos" },
+                    { valor: "PRODUTO", label: "🍺 Gasto" },
+                    { valor: "VALE", label: "💵 Vale" },
+                    { valor: "DESCONTO", label: "🏷️ Desconto" },
+                  ].map((op) => (
+                    <button
+                      key={op.valor}
+                      className={`pdv-gastos-bar-filtro-tipo-btn ${gastosBarFiltroTipo === op.valor ? "active" : ""}`}
+                      onClick={() => setGastosBarFiltroTipo(op.valor)}
+                    >
+                      {op.label}
+                    </button>
+                  ))}
+                </div>
+                <button className="pdv-pedidos-limpar-btn" onClick={gastosBarLimparFiltros}>Limpar</button>
+              </div>
+
               {isLoadingGastosBar ? (
                 <div className="pdv-caixa-fechado-state"><FaSpinner className="loading-iconn" size={30} /><p>Carregando...</p></div>
               ) : (
@@ -3750,14 +3830,14 @@ const PDV = () => {
                   {/* Visão por Semana */}
                   {gastosBarSubView === "semanas" && (
                     <div className="pdv-gastos-bar-semanas">
-                      {gastosBarSemanas.length === 0 ? (
+                      {gastosBarSemanasFiltradas.length === 0 ? (
                         <div className="pdv-caixa-fechado-state">
                           <FaGlassWhiskey size={40} />
                           <h4>Nenhum gasto registrado</h4>
                           <p style={{ color: "#888" }}>Registre produtos pegos por funcionários e descontos dados.</p>
                         </div>
                       ) : (
-                        gastosBarSemanas.map((semana, idx) => {
+                        gastosBarSemanasFiltradas.map((semana, idx) => {
                           const dataInicio = new Date(semana.semana + "T00:00:00");
                           const dataFim = new Date(dataInicio);
                           dataFim.setDate(dataFim.getDate() + 6);
@@ -3845,13 +3925,13 @@ const PDV = () => {
                   {/* Visão por Funcionário */}
                   {gastosBarSubView === "funcionarios" && (
                     <div className="pdv-gastos-bar-funcionarios">
-                      {gastosBarResumo.length === 0 ? (
+                      {gastosBarResumoFiltrado.length === 0 ? (
                         <div className="pdv-caixa-fechado-state">
                           <FaUserTie size={40} />
                           <h4>Nenhum gasto por funcionário</h4>
                         </div>
                       ) : (
-                        gastosBarResumo.map((func, idx) => (
+                        gastosBarResumoFiltrado.map((func, idx) => (
                           <div key={idx} className="pdv-gastos-bar-func-card">
                             <div className="pdv-gastos-bar-func-header">
                               <div className="pdv-gastos-bar-func-name"><FaUserTie size={14} /> {func.funcionario}</div>
