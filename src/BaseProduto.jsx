@@ -877,11 +877,11 @@ const ProductList = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        {isAdmin && (
+        (
           <button className="bp-btn-entrada" onClick={openEntradaModal}>
             <FaPlus /> Entrada de Estoque
           </button>
-        )}
+        )
       </div>
 
       {/* ============ SEÇÃO FALTA NO ESTOQUE ============ */}
@@ -908,12 +908,12 @@ const ProductList = () => {
                       : item.category?.name || "—"}
                   </span>
                   <span className="bp-falta-item-qtd">0 {item.unit}</span>
-                  {isAdmin && (
+                   (
                     <div className="bp-falta-item-actions">
                       <button className="bp-btn-update" onClick={() => handleUpdateProduct(item)}>Editar</button>
                       <button className="bp-btn-delete" onClick={() => handleDeleteProduct(item.id)}>Excluir</button>
                     </div>
-                  )}
+                  )
                 </li>
               ))}
             </ul>
@@ -931,7 +931,7 @@ const ProductList = () => {
           <div className="bp-header-col">VALOR UN</div>
           <div className="bp-header-col">CUSTO</div>
         </div>
-        <div className="bp-header-actions">{isAdmin ? "AÇÕES" : ""}</div>
+        <div className="bp-header-actions">{"AÇÕES"}</div>
       </div>
 
       {/* Lista de produtos agrupados */}
@@ -1044,19 +1044,19 @@ const ProductList = () => {
                                     <span className="bp-value-destaque">{formatCurrency(item.valuecusto)}</span>
                                   </div>
                                 </div>
-                                {isAdmin && (
+                                 (
                                 <div className="bp-actions">
                                   {(() => {
                                     const baseU = getBaseUnit(item);
                                     const baseV = eqVal(baseU);
                                     const isBase = item.unit === baseU;
-                                    const canConvert = (!isBase && eqVal(item.unit) !== baseV) ||
-                                      (isBase && Object.keys(unitEquivalences).some(u => u !== baseU && eqVal(u) > baseV));
-                                    return canConvert && (
-                                      <button className="bp-btn-convert" onClick={() => openConvertModal(item)} title={isBase ? "Empacotar unidades" : `Converter para ${baseU}`}>
-                                        <FaExchangeAlt />
-                                      </button>
-                                    );
+                                    // const canConvert = (!isBase && eqVal(item.unit) !== baseV) ||
+                                    //   (isBase && Object.keys(unitEquivalences).some(u => u !== baseU && eqVal(u) > baseV));
+                                    // return canConvert && (
+                                    //   <button className="bp-btn-convert" onClick={() => openConvertModal(item)} title={isBase ? "Empacotar unidades" : `Converter para ${baseU}`}>
+                                    //     <FaExchangeAlt />
+                                    //   </button>
+                                    // );
                                   })()}
                                   <button
                                     className={`bp-btn-minimo ${minimoMap[item.id] ? "bp-btn-minimo--set" : ""}`}
@@ -1082,7 +1082,7 @@ const ProductList = () => {
                                   <button className="bp-btn-update" onClick={() => handleUpdateProduct(item)}>Editar</button>
                                   <button className="bp-btn-delete" onClick={() => handleDeleteProduct(item.id)}>Excluir</button>
                                 </div>
-                                )}
+                                )
                               </>
                             )}
                           </li>
