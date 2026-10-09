@@ -331,7 +331,7 @@ const PDV = () => {
       .get(`${API_URL}/api/unit-equivalences`)
       .then((response) => {
         const map = {};
-        response.data.forEach(e => { map[e.unitName] = e.value; });
+        response.data.forEach(e => { map[e.unitName] = e; });
         setUnitEquivalences(map);
       })
       .catch((error) => {
@@ -1966,28 +1966,31 @@ const PDV = () => {
     }, 0);
   };
 
-  // Verifica se um produto tem irmão com unidade diferente no mesmo productId
-  // Se sim, o servidor pode fazer conversão automática — não bloquear no frontend
-  const hasConversionSibling = (product) => {
-    const pid = product.productId || product.product?.id;
+  // Uma unidade só é abastecida por conversão a partir de uma irmã não fracional com
+  // estoque (a "garrafa" pai). Dose nunca vira Dose — mesma regra aplicada no backend.
+  const temIrmaoConvertivelEm = (lista, alvo) => {
+    const pid = alvo?.productId || alvo?.product?.id;
     if (!pid) return false;
-    return products.some(p => {
-      const spid = p.productId || p.product?.id;
-      return spid === pid && p.id !== product.id;
+    const alvoEq = unitEquivalences[alvo.unit];
+    return lista.some((item) => {
+      const spid = item.productId || item.product?.id;
+      if (spid !== pid || item.id === alvo.id) return false;
+      if ((item.quantity ?? 0) < 1) return false;
+      const itemEq = unitEquivalences[item.unit];
+      if (itemEq?.isFractional) return false;
+      if (alvoEq?.isFractional) return (alvoEq.fractionalValue || 0) > 0;
+      return (itemEq?.value || 1) > (alvoEq?.value || 1);
     });
   };
 
+  // Verifica se um produto tem irmão conversível no mesmo productId.
+  // Se sim, o servidor pode fazer conversão automática — não bloquear no frontend
+  const hasConversionSibling = (product) => temIrmaoConvertivelEm(products, product);
+
   // Verifica se um ingrediente de composição (unidade zerada) pode ser atendido
   // por conversão automática de outra unidade do mesmo produto com estoque.
-  const temIrmaoConvertivelOpcao = (estoqueOpcao) => {
-    if (!estoqueOpcao || estoqueOpcao.productId == null) return false;
-    return allEstoque.some(
-      (item) =>
-        item.productId === estoqueOpcao.productId &&
-        item.id !== estoqueOpcao.id &&
-        (item.quantity ?? 0) >= 1
-    );
-  };
+  const temIrmaoConvertivelOpcao = (estoqueOpcao) =>
+    temIrmaoConvertivelEm(allEstoque, estoqueOpcao);
 
   const addToCart = (product) => {
     // Validar estoque disponível (permite quando há unidade irmã convertível)

@@ -843,7 +843,8 @@ const ProductList = () => {
 
   // Separa itens zerados (falta no estoque) dos itens com saldo disponível.
   // Um item zerado NÃO está em falta se houver unidade de medida maior do mesmo
-  // produto com estoque disponível (conversão automática na venda).
+  // produto com estoque disponível (conversão automática na venda). Unidades
+  // fracionais só são abastecidas pela unidade-pai não fracional.
   const hasConversionSibling = (item) => {
     const pid = item.productId;
     if (!pid) return false;
@@ -852,7 +853,8 @@ const ProductList = () => {
     return estoqueItems.some((s) => {
       if (s.productId !== pid || s.id === item.id) return false;
       if ((s.quantity ?? 0) < 1) return false;
-      if (currentIsFractional) return true; // qualquer unidade-pai desmembra em frações
+      if (fractionalUnits.includes(s.unit)) return false;
+      if (currentIsFractional) return true; // unidade-pai desmembra em frações
       return eqVal(s.unit) > currentVal; // irmã com unidade maior
     });
   };
