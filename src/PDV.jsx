@@ -1785,7 +1785,7 @@ const PDV = () => {
     if (!compModalProduct) return;
     
     // Validar estoque disponível
-    if (compModalProduct.quantity < 1 && !hasConversionSibling(compModalProduct)) {
+    if (compModalProduct.quantity < 1 && !hasConversionSibling(compModalProduct) && !compostoPodeConverter(compModalProduct, JSON.stringify(compSelections), 1)) {
       setMessage({ 
         show: true, 
         text: `Estoque insuficiente para "${compModalProduct.name}". Disponível: ${compModalProduct.quantity}.`, 
@@ -1831,8 +1831,8 @@ const PDV = () => {
       // Validar se pode aumentar a quantidade - usar maxQuantity ou fallback para compModalProduct.quantity
       const maxQty = existingItem.maxQuantity !== undefined ? existingItem.maxQuantity : compModalProduct.quantity;
       if (maxQty < newQuantity) {
-        // Permite ultrapassar se há irmão de outra unidade (servidor fará conversão automática)
-        if (!hasConversionSibling(compModalProduct)) {
+        // Permite ultrapassar se algum componente pode ser convertido da unidade-pai (servidor converte)
+        if (!compostoPodeConverter(compModalProduct, composicaoJSON, newQuantity)) {
           setMessage({ 
             show: true, 
             text: `Estoque insuficiente para "${compModalProduct.name}". Disponível: ${maxQty}, Solicitado: ${newQuantity}.`, 
@@ -1985,12 +1985,47 @@ const PDV = () => {
 
   // Verifica se um produto tem irmão conversível no mesmo productId.
   // Se sim, o servidor pode fazer conversão automática — não bloquear no frontend
-  const hasConversionSibling = (product) => temIrmaoConvertivelEm(products, product);
+  const hasConversionSibling = (product) =>
+    product?.isCombo ? comboAbastecivelPorConversao(product) : temIrmaoConvertivelEm(products, product);
 
   // Verifica se um ingrediente de composição (unidade zerada) pode ser atendido
   // por conversão automática de outra unidade do mesmo produto com estoque.
   const temIrmaoConvertivelOpcao = (estoqueOpcao) =>
     temIrmaoConvertivelEm(allEstoque, estoqueOpcao);
+
+  // Combo zerado continua vendável se cada grupo obrigatório pode ser suprido por estoque ou conversão.
+  const comboAbastecivelPorConversao = (combo) => {
+    const grupos = (combo?.composicoes || []).filter((c) => c.obrigatorio);
+    if (grupos.length === 0) return false;
+    const viavel = (o) => (o.estoque?.quantity ?? 0) >= 1 || temIrmaoConvertivelOpcao(o.estoque);
+    return grupos.every((grupo) => {
+      const opcoes = (grupo.opcoes || []).filter((o) => o.disponivel && o.estoque);
+      const bases = opcoes.filter((o) => o.base);
+      if (!bases.every(viavel)) return false;
+      const quotaBase = bases.reduce((s, o) => s + Math.max(1, o.consomeQtd || 1), 0);
+      const restante = Math.max(0, Math.max(1, grupo.maxOpcoes || 1) - quotaBase);
+      return restante === 0 || opcoes.some((o) => !o.base && viavel(o));
+    });
+  };
+
+  // Item composto (combo/dose) não tem estoque próprio: a baixa ocorre nos componentes.
+  // Pode passar do disponível se cada componente que não cobre a quantidade tem unidade-pai para converter.
+  const compostoPodeConverter = (produtoRef, composicaoJSON, quantidade) => {
+    let selecoes;
+    try { selecoes = JSON.parse(composicaoJSON || "{}"); } catch { return false; }
+    let temSelecao = false;
+    for (const comp of produtoRef?.composicoes || []) {
+      for (const sel of selecoes[comp.id] || []) {
+        const opcao = (comp.opcoes || []).find(o => o.id === sel.id);
+        if (!opcao?.estoque) continue;
+        temSelecao = true;
+        const necessario = quantidade * (sel.qtd || 1);
+        if ((opcao.estoque.quantity ?? 0) >= necessario) continue;
+        if (!temIrmaoConvertivelOpcao(opcao.estoque)) return false;
+      }
+    }
+    return temSelecao;
+  };
 
   const addToCart = (product) => {
     // Validar estoque disponível (permite quando há unidade irmã convertível)
@@ -2065,9 +2100,12 @@ const PDV = () => {
     }
 
     if (maxAvailable !== undefined && maxAvailable < newQuantity) {
-      // Permite ultrapassar se há irmão de outra unidade (servidor fará conversão automática)
+      // Permite ultrapassar se há conversão possível (servidor fará a conversão automática)
       const productInList = products.find(p => p.id === productId);
-      if (!productInList || !hasConversionSibling(productInList)) {
+      const podeConverter = compostoKey
+        ? compostoPodeConverter(productInList, cartItem.composicao, newQuantity)
+        : !!productInList && hasConversionSibling(productInList);
+      if (!podeConverter) {
         setMessage({ 
           show: true, 
           text: `Estoque insuficiente para "${cartItem.name}". Disponível: ${maxAvailable}, Solicitado: ${newQuantity}.`, 
