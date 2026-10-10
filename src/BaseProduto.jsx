@@ -857,11 +857,13 @@ const ProductList = () => {
     });
   };
 
+  // Variação de venda (combo) não tem estoque próprio — o disponível é
+  // calculado pelos componentes. Portanto nunca entra em "Falta no Estoque".
   const zeroedItems = filteredItems
-    .filter((item) => (item.quantity ?? 0) <= 0 && !hasConversionSibling(item))
+    .filter((item) => !item.isCombo && (item.quantity ?? 0) <= 0 && !hasConversionSibling(item))
     .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   const activeItems = filteredItems.filter(
-    (item) => (item.quantity ?? 0) > 0 || hasConversionSibling(item)
+    (item) => item.isCombo || (item.quantity ?? 0) > 0 || hasConversionSibling(item)
   );
 
   return (
