@@ -1971,6 +1971,7 @@ const PDV = () => {
   const temIrmaoConvertivelEm = (lista, alvo) => {
     const pid = alvo?.productId || alvo?.product?.id;
     if (!pid) return false;
+    if (alvo.controlaMontante) return false; // montante já cobre todas as unidades do produto
     const alvoEq = unitEquivalences[alvo.unit];
     return lista.some((item) => {
       const spid = item.productId || item.product?.id;

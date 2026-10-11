@@ -1,6 +1,6 @@
 import axios from "axios";
 import React, { useContext, useEffect, useState } from "react";
-import { FaSpinner, FaExchangeAlt, FaPlus, FaBoxOpen, FaLayerGroup, FaTrash, FaTimes, FaCheck, FaBell, FaPen } from "react-icons/fa";
+import { FaSpinner, FaExchangeAlt, FaPlus, FaBoxOpen, FaLayerGroup, FaTrash, FaTimes, FaCheck, FaBell, FaPen, FaTint } from "react-icons/fa";
 import * as XLSX from "xlsx";
 import Message from "./Message";
 import { AuthContext } from "./AuthContext";
@@ -187,6 +187,32 @@ const ProductList = () => {
       .then(() => { fetchMinimoMap(); setShowMinimoModal(false); })
       .catch(() => setMessage({ text: "Erro ao salvar mínimo!", type: "error" }))
       .finally(() => setSavingMinimo(false));
+  };
+
+  // Controle por montante (ML): prévia e ativação/desativação por produto
+  const fmtMl = (v) => Number((v || 0).toFixed(2)).toLocaleString("pt-BR");
+
+  const handleMontante = async (item) => {
+    try {
+      const { data: prev } = await axios.get(`${API_URL}/api/estoque_prod/montante/preview/${item.productId}`);
+      if (prev.ativo) {
+        if (!window.confirm(`"${prev.nome}" usa controle por montante (${prev.montanteMl} ML).\n\nDesativar e voltar à conversão padrão entre unidades?`)) return;
+        await axios.post(`${API_URL}/api/estoque_prod/montante/desativar`, { productId: item.productId });
+        setMessage({ show: true, text: "Controle por montante desativado.", type: "success" });
+      } else {
+        if (prev.semMl.length > 0) {
+          setMessage({ show: true, text: `Inclua o ML na unidade ou no nome de: ${prev.semMl.map((d) => d.unit).join(", ")}.`, type: "error" });
+          return;
+        }
+        const linhas = prev.resultado.map((r) => `• ${r.unit} (${r.ml}ML): ${r.quantidadeAtual} → ${r.quantidadeNova}`).join("\n");
+        if (!window.confirm(`Ativar controle por montante em "${prev.nome}"?\n\nMontante: ${prev.montanteMl} ML\n\n${linhas}`)) return;
+        await axios.post(`${API_URL}/api/estoque_prod/montante/ativar`, { productId: item.productId });
+        setMessage({ show: true, text: "Controle por montante ativado.", type: "success" });
+      }
+      fetchEstoque();
+    } catch (err) {
+      setMessage({ show: true, text: err.response?.data?.error || "Erro ao alterar controle por montante.", type: "error" });
+    }
   };
 
   // Formatar moeda
@@ -848,6 +874,7 @@ const ProductList = () => {
   const hasConversionSibling = (item) => {
     const pid = item.productId;
     if (!pid) return false;
+    if (item.controlaMontante) return false; // montante já cobre todas as unidades do produto
     const currentIsFractional = fractionalUnits.includes(item.unit);
     const currentVal = eqVal(item.unit);
     return estoqueItems.some((s) => {
@@ -903,7 +930,12 @@ const ProductList = () => {
             <ul className="bp-falta-list">
               {zeroedItems.map((item) => (
                 <li className="bp-falta-item" key={item.id}>
-                  <span className="bp-falta-item-name">{item.name}</span>
+                  <span className="bp-falta-item-name">
+                    {item.name}
+                    {item.controlaMontante && (
+                      <span className="bp-badge-montante">Montante: {fmtMl(item.montanteMl)} ML</span>
+                    )}
+                  </span>
                   <span className="bp-falta-item-cat">
                     {item.category?.parent
                       ? `${item.category.parent.name} > ${item.category.name}`
@@ -1016,6 +1048,9 @@ const ProductList = () => {
                                       {item.contabiliza === false && (
                                         <span className="bp-badge-descartavel" title="Descartável — não baixa estoque automaticamente">N</span>
                                       )}
+                                      {item.controlaMontante && (
+                                        <span className="bp-badge-montante" title="Montante em ML do produto (garrafa + doses)">Montante: {fmtMl(item.montanteMl)} ML</span>
+                                      )}
                                       {(item.product?.pdvHiddenUnits || []).includes(item.unit) && (
                                         <span className="bp-badge-oculto-pdv" title="Oculto no PDV — configure em Produtos">PDV</span>
                                       )}
@@ -1072,6 +1107,15 @@ const ProductList = () => {
                                   >
                                     <FaLayerGroup /> {item.composicoes?.length > 0 && item.composicoes.length}
                                   </button>
+                                  {!item.isCombo && (
+                                    <button
+                                      className={`bp-btn-minimo ${item.controlaMontante ? "bp-btn-minimo--set" : ""}`}
+                                      onClick={() => handleMontante(item)}
+                                      title={item.controlaMontante ? `Controle por montante ativo (${item.montanteMl} ML)` : "Controlar por montante (ML)"}
+                                    >
+                                      <FaTint />
+                                    </button>
+                                  )}
                                   <button className="bp-btn-update" onClick={() => handleUpdateProduct(item)}>Editar</button>
                                   <button className="bp-btn-delete" onClick={() => handleDeleteProduct(item.id)}>Excluir</button>
                                 </div>
