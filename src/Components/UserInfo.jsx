@@ -3,7 +3,7 @@ import { FaSignOutAlt, FaUser } from "react-icons/fa";
 import { AuthContext } from "../AuthContext";
 
 const UserInfo = () => {
-  const { auth, logout } = useContext(AuthContext);
+  const { auth, requestLogout } = useContext(AuthContext);
 
   return (
     <div
@@ -31,7 +31,7 @@ const UserInfo = () => {
       </div>
       
       <button
-        onClick={logout}
+        onClick={requestLogout}
         style={{
           background: "rgba(255, 255, 255, 0.2)",
           border: "none",

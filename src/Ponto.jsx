@@ -1,11 +1,14 @@
 import axios from "axios";
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import Message from "./Message";
+import { AuthContext } from "./AuthContext";
 import "./Ponto.css";
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
 const Ponto = () => {
+  const { auth } = useContext(AuthContext);
+  const isAdmin = auth?.permissions?.acessos === true;
   const [employees, setEmployees] = useState([]);
   const [weeklyData, setWeeklyData] = useState([]);
   const [monthlyData, setMonthlyData] = useState([]);
@@ -1287,6 +1290,24 @@ const handleSaveEdit = () => {
     }
   };
 
+  const handleToggleAutoPonto = async (employee, value) => {
+    try {
+      await axios.put(
+        `https://api-start-pira-qa.vercel.app/api/employees/${employee.id}`,
+        { autoPonto: value },
+        { headers: { Authorization: `Bearer ${auth.token}` } }
+      );
+      setEmployees((prev) => prev.map((e) => (e.id === employee.id ? { ...e, autoPonto: value } : e)));
+      setSelectedEmployeeForDetails((prev) => (prev && prev.id === employee.id ? { ...prev, autoPonto: value } : prev));
+      setMessage({ show: true, text: `Ponto automático ${value ? "habilitado" : "desabilitado"}.`, type: "success" });
+    } catch (error) {
+      console.error("Erro ao alterar ponto automático:", error);
+      setMessage({ show: true, text: "Erro ao alterar ponto automático.", type: "error" });
+    } finally {
+      setTimeout(() => setMessage(""), 3000);
+    }
+  };
+
   const handleUpdateEmployee = async (id, updatedData) => {
     try {
       // Buscar funcionário atual para comparar valores
@@ -1353,8 +1374,9 @@ const handleSaveEdit = () => {
         }
       }
 
-      // Atualizar funcionário normalmente
-      await axios.put(`https://api-start-pira-qa.vercel.app/api/employees/${id}`, updatedData);
+      // Atualizar funcionário normalmente (autoPonto só é alterado por handleToggleAutoPonto)
+      const { autoPonto: _autoPonto, ...payload } = updatedData;
+      await axios.put(`https://api-start-pira-qa.vercel.app/api/employees/${id}`, payload);
 
       setEmployees((prev) => prev.map((employee) => (employee.id === id ? { ...employee, ...updatedData } : employee)));
 
@@ -3162,6 +3184,31 @@ const handleSaveEdit = () => {
                   </p>
                 )}
               </div>
+              {isAdmin && (
+                <div>
+                  <strong>Ponto automático:</strong>
+                  <div style={{ margin: "4px 0" }}>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleAutoPonto(selectedEmployeeForDetails, !selectedEmployeeForDetails.autoPonto)}
+                      style={{
+                        padding: "4px 12px",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        color: "#fff",
+                        textShadow: "none",
+                        background: selectedEmployeeForDetails.autoPonto ? "#4caf50" : "#9e9e9e",
+                      }}
+                    >
+                      {selectedEmployeeForDetails.autoPonto ? "Habilitado" : "Desabilitado"}
+                    </button>
+                  </div>
+                  <p style={{ margin: "4px 0", color: "#666", fontSize: 12, textShadow: "none" }}>
+                    Registra a entrada no login e a saída no logout (com confirmação) deste funcionário.
+                  </p>
+                </div>
+              )}
             </div>
             <div style={{ marginBottom: 24 }}>
               <h4 style={{ color: "#333", borderBottom: "1px solid #ddd", paddingBottom: 8, textShadow: "none" }}>
