@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { AuthProvider } from "./AuthContext";
+import { normalizarCorpo } from "./normalizarEntrada";
 import "./index.css";
 
 // Bloqueia scroll do mouse em inputs numéricos (evita alterar valores acidentalmente)
@@ -15,6 +16,7 @@ document.addEventListener("wheel", (e) => {
 
 // Interceptor global: envia o token JWT em toda requisição
 axios.interceptors.request.use((config) => {
+  config.data = normalizarCorpo(config.method, config.url, config.data);
   const token = localStorage.getItem("authToken");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;

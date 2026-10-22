@@ -25,7 +25,7 @@ const ProductList = () => {
   const [showEntradaModal, setShowEntradaModal] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState("");
   const [entradaQuantity, setEntradaQuantity] = useState("");
-  const [entradaUnit, setEntradaUnit] = useState("Unidade");
+  const [entradaUnit, setEntradaUnit] = useState("UNIDADE");
   const [entradaValue, setEntradaValue] = useState("");
   const [entradaCusto, setEntradaCusto] = useState("");
   const [productSearch, setProductSearch] = useState("");
@@ -39,7 +39,7 @@ const ProductList = () => {
   const [convertDirection, setConvertDirection] = useState("toUnit"); // "toUnit" ou "fromUnit"
   const [convertTargetUnit, setConvertTargetUnit] = useState("");
   // Estado para conversão em porções customizadas
-  const [doseTargetUnit, setDoseTargetUnit] = useState("Dose");
+  const [doseTargetUnit, setDoseTargetUnit] = useState("DOSE");
   const [doseYield, setDoseYield] = useState(""); // rendimento: qtd de porções por unidade
   const [doseSellValue, setDoseSellValue] = useState(""); // preço de venda da porção
 
@@ -147,7 +147,7 @@ const ProductList = () => {
           acc[eq.unitName] = eq.value;
           return acc;
         }, {});
-        obj["Unidade"] = 1;
+        obj["UNIDADE"] = 1;
         setUnitEquivalences(obj);
         setFractionalUnits(
           res.data
@@ -157,7 +157,7 @@ const ProductList = () => {
       })
       .catch((err) => {
         console.error("Erro ao buscar equivalências:", err);
-        setUnitEquivalences({ "Unidade": 1, "Maço": 20, "Fardo": 12, "Pacote": 10 });
+        setUnitEquivalences({ "UNIDADE": 1, "MAÇO": 20, "FARDO": 12, "PACOTE": 10 });
       });
   };
 
@@ -261,7 +261,7 @@ const ProductList = () => {
     setShowEntradaModal(true);
     setSelectedProductId("");
     setEntradaQuantity("");
-    setEntradaUnit("Unidade");
+    setEntradaUnit("UNIDADE");
     setEntradaValue("");
     setEntradaCusto("");
     setProductSearch("");
@@ -290,7 +290,7 @@ const ProductList = () => {
   const handleSelectCatalogProduct = (product) => {
     setSelectedProductId(product.id);
     setProductSearch(product.name);
-    setEntradaUnit(product.unit || "Unidade");
+    setEntradaUnit(product.unit || "UNIDADE");
     setShowCatalogDropdown(false);
   };
 
@@ -331,7 +331,7 @@ const ProductList = () => {
   // Resolve a unidade base (unitária = 1) de um item de estoque.
   // Usa product.baseUnit se definido; senão deduz a menor unidade cadastrada do produto.
   const getBaseUnit = (item) => {
-    if (!item) return "Unidade";
+    if (!item) return "UNIDADE";
     if (item.product?.baseUnit) return item.product.baseUnit;
     const group = estoqueItems.filter(e => e.productId === item.productId);
     const source = group.length ? group : [item];
@@ -340,7 +340,7 @@ const ProductList = () => {
       const val = eqVal(e.unit);
       if (val < bestVal) { bestVal = val; best = e.unit; }
     });
-    return best || "Unidade";
+    return best || "UNIDADE";
   };
 
   const openConvertModal = (item) => {
@@ -363,7 +363,7 @@ const ProductList = () => {
       setConvertTargetUnit("");
     }
     setShowConvertModal(true);
-    setDoseTargetUnit("Dose");
+    setDoseTargetUnit("DOSE");
     setDoseYield("");
     setDoseSellValue("");
   };
@@ -760,7 +760,7 @@ const ProductList = () => {
   const openComboModal = (item) => {
     setComboItem(item);
     setComboAtivo(!!item.isCombo);
-    setComboNome(item.comboNome || item.unit || 'Combo');
+    setComboNome(item.comboNome || item.unit || 'COMBO');
     setShowComboModal(true);
   };
 
@@ -770,7 +770,7 @@ const ProductList = () => {
     try {
       await axios.patch(`${API_URL}/api/estoque_prod/${comboItem.id}/combo`, {
         isCombo: comboAtivo,
-        comboNome: comboAtivo ? (comboNome.trim() || 'Combo') : null
+        comboNome: comboAtivo ? (comboNome.trim() || 'COMBO') : null
       });
       setShowComboModal(false);
       fetchEstoque();
@@ -838,7 +838,7 @@ const ProductList = () => {
   const conversionPreview = getConversionPreview();
 
   // Unidade base do item em conversão (unitária = 1)
-  const convertBaseUnit = convertItem ? getBaseUnit(convertItem) : "Unidade";
+  const convertBaseUnit = convertItem ? getBaseUnit(convertItem) : "UNIDADE";
   const convertBaseVal = eqVal(convertBaseUnit);
 
   // Unidades atreladas ao produto selecionado na entrada (espelha o mobile):
@@ -846,7 +846,7 @@ const ProductList = () => {
   // Só mostra as unidades que têm relação com o produto (nunca todas as unidades do sistema).
   const entradaProduct = catalogProducts.find((p) => p.id === selectedProductId);
   const entradaAvailableUnits = (() => {
-    if (!entradaProduct) return ["Unidade"];
+    if (!entradaProduct) return ["UNIDADE"];
     const unidades = [];
     if (entradaProduct.unit) unidades.push(entradaProduct.unit);
     (entradaProduct.estoqueItems || []).forEach((item) => {
@@ -864,7 +864,7 @@ const ProductList = () => {
       });
     }
     const result = [...new Set(unidades.filter(Boolean))];
-    return result.length ? result : ["Unidade"];
+    return result.length ? result : ["UNIDADE"];
   })();
 
   // Separa itens zerados (falta no estoque) dos itens com saldo disponível.
@@ -1096,7 +1096,7 @@ const ProductList = () => {
                                   <button
                                     className={`bp-btn-combo ${item.isCombo ? 'bp-btn-combo--ativo' : ''}`}
                                     onClick={() => openComboModal(item)}
-                                    title={item.isCombo ? `Variação de venda: ${item.comboNome || 'Combo'}` : 'Definir como variação de venda (combo)'}
+                                    title={item.isCombo ? `Variação de venda: ${item.comboNome || 'COMBO'}` : 'Definir como variação de venda (combo)'}
                                   >
                                     <FaBoxOpen />
                                   </button>
@@ -1394,7 +1394,7 @@ const ProductList = () => {
                         <div className="bp-convert-arrow">
                           <span className="bp-convert-from">{parseInt(convertQuantity) || 0}x {convertItem.unit}</span>
                           <FaExchangeAlt />
-                          <span className="bp-convert-to">{Math.floor((parseInt(convertQuantity) || 0) * parseFloat(doseYield))}x {doseTargetUnit || "Dose"}</span>
+                          <span className="bp-convert-to">{Math.floor((parseInt(convertQuantity) || 0) * parseFloat(doseYield))}x {doseTargetUnit || "DOSE"}</span>
                         </div>
                         {parseInt(convertQuantity) > convertItem.quantity && (
                           <div className="bp-conversion-warning">⚠️ Quantidade maior que o estoque disponível ({convertItem.quantity})!</div>

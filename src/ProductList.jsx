@@ -9,7 +9,7 @@ const ProductList = () => {
   const [products, setProducts] = useState([]);
   const [newProduct, setNewProduct] = useState("");
   const [quantity, setQuantity] = useState("");
-  const [unit, setUnit] = useState("Unidade");
+  const [unit, setUnit] = useState("UNIDADE");
   const [baseUnit, setBaseUnit] = useState("");
   const [value, setPreco] = useState("");
   const [valuecusto, setPrecoCusto] = useState("");
@@ -100,17 +100,17 @@ const ProductList = () => {
           acc[equiv.unitName] = equiv.value;
           return acc;
         }, {});
-        equivalencesObj["Unidade"] = 1;
+        equivalencesObj["UNIDADE"] = 1;
         setUnitEquivalences(equivalencesObj);
         console.log("Equivalências carregadas:", equivalencesObj);
       })
       .catch((error) => {
         console.error("Erro ao buscar equivalências:", error);
         setUnitEquivalences({
-          "Unidade": 1,
-          "Maço": 20,
-          "Fardo": 10,
-          "Pacote": 12
+          "UNIDADE": 1,
+          "MAÇO": 20,
+          "FARDO": 10,
+          "PACOTE": 12
         });
       });
   }, []);
@@ -167,7 +167,7 @@ const ProductList = () => {
         .then((response) => {
           setProducts([...products, response.data]);
           setNewProduct("");
-          setUnit("Unidade");
+          setUnit("UNIDADE");
           setBaseUnit("");
           setPreco("");
           setPrecoCusto("");
@@ -188,23 +188,24 @@ const ProductList = () => {
   };
 
   const handleAddUnit = () => {
-    if (newUnit.trim() !== "" && !Object.keys(unitEquivalences).includes(newUnit)) {
-      if (newUnit !== "Unidade") {
-        setSelectedUnitForEquivalence(newUnit);
+    const unidade = newUnit.trim().toUpperCase();
+    if (unidade !== "" && !Object.keys(unitEquivalences).includes(unidade)) {
+      if (unidade !== "UNIDADE") {
+        setSelectedUnitForEquivalence(unidade);
         setIsUnitModalOpen(false);
         setNewUnit("");
         setIsUnitEquivalenceModalOpen(true);
       } else {
         setUnitEquivalences({
           ...unitEquivalences,
-          [newUnit]: 1
+          [unidade]: 1
         });
         setIsUnitModalOpen(false);
         setNewUnit("");
-        setMessage({ show: true, text: `Unidade "${newUnit}" adicionada com sucesso!`, type: "success" });
+        setMessage({ show: true, text: `Unidade "${unidade}" adicionada com sucesso!`, type: "success" });
         setTimeout(() => setMessage(null), 3000);
       }
-    } else if (Object.keys(unitEquivalences).includes(newUnit)) {
+    } else if (Object.keys(unitEquivalences).includes(unidade)) {
       setMessage({ show: true, text: "Esta unidade já existe!", type: "error" });
       setTimeout(() => setMessage(null), 3000);
     } else {
@@ -302,7 +303,7 @@ const ProductList = () => {
 
   const handleUnitSelection = (selectedUnit) => {
     setUnitFilter("");
-    if (selectedUnit !== "Unidade" && !unitEquivalences[selectedUnit]) {
+    if (selectedUnit !== "UNIDADE" && !unitEquivalences[selectedUnit]) {
       setSelectedUnitForEquivalence(selectedUnit);
       setIsUnitEquivalenceModalOpen(true);
     } else {
@@ -855,7 +856,7 @@ const ProductList = () => {
         <div className="custom-select">
           <div className="selected-unit">
             {unit || "Selecione uma unidade"}
-            {unit && unit !== "Unidade" && unitEquivalences[unit] > 1 && (
+            {unit && unit !== "UNIDADE" && unitEquivalences[unit] > 1 && (
               <span style={{ fontSize: '11px', color: '#666', marginLeft: '5px', textShadow: 'none' }}>
                 (1 = {unitEquivalences[unit]} un.)
               </span>
@@ -873,12 +874,12 @@ const ProductList = () => {
               />
             </li>
             <li className="unit-item">
-              <span className="unit-name" onClick={() => { setUnit("Unidade"); setUnitFilter(""); }}>
+              <span className="unit-name" onClick={() => { setUnit("UNIDADE"); setUnitFilter(""); }}>
                 Unidade
               </span>
             </li>
             {Object.keys(unitEquivalences)
-              .filter((u) => u !== "Unidade" && u.toLowerCase().includes(unitFilter.toLowerCase()))
+              .filter((u) => u !== "UNIDADE" && u.toLowerCase().includes(unitFilter.toLowerCase()))
               .map((u, index) => (
               <li key={index} className="unit-item">
                 <span className="unit-name" onClick={() => handleUnitSelection(u)}>
